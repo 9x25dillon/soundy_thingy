@@ -1,100 +1,110 @@
 # soundy_thingy
 
-A fully client-side generative ambient synthesizer that runs in any modern browser.
+A collection of self-contained, browser-based audio instruments and tools focused on generative sound design, resonance, and ambient synthesis.
 
-**synth.html** — a single, self-contained HTML file (~37 KB) that generates evolving, musical, never-repeating ambient drones and melodic sequences using only the Web Audio API. No dependencies, no build step, no network calls. Just open the file.
+All tools are **single-file** (or minimal) and work completely offline when opened directly.
 
-## Features
+## Main Project
+
+**synth.html** — A fully client-side generative ambient synthesizer.
+
+A polished, playable instrument that generates evolving, musical, never-repeating ambient drones and melodic sequences using only the Web Audio API.
+
+- Zero dependencies, zero build step, zero network calls.
+- Open the file and it just works (even from `file://` or USB drive).
+- ~37 KB total.
+
+### Key Features
 
 - **Generative Engine**: Press play and let it compose. Uses a seeded PRNG for reproducible yet endlessly varying music.
-- **6 Voice Types**:
-  - Pad (rich, detuned, shimmering)
-  - Pluck (Karplus-Strong style)
-  - Bass (sub + drive)
-  - Bell (FM metallic)
-  - Drone (sustaining with breath and movement)
-  - Noise-wash (textural)
-- **Extensible Architecture**:
-  - Add new voices, LFO targets, scales, or geometric pentatonics with tiny registry edits.
-- **Scales & Geometry**:
-  - 14+ scales (major, minor, dorian, phrygian, lydian, pentatonics, hirajoshi, insen, etc.)
-  - Geometric pentatonics (circle of fifths, golden spiral, pentagram, equilateral, etc.)
-- **Modulation Matrix**: Route LFOs (sine, triangle, saw, square, random, smooth random) to any parameter, FX, density, etc.
-- **FX Chain**: Ping-pong delay (tempo-syncable), procedural reverb, chorus, drive, stereo widener, master lowpass + limiter.
-- **Mood Macros**: Warm, Calm, Glass, Dark, Bright — instantly reshape the character.
-- **Visualizer**: Spectrum, oscilloscope, and orbit view (shows geometric shapes when active).
+- **6 Voice Types**: Pad, Pluck, Bass, Bell, Drone, Noise-wash.
+- **Extensible Architecture**: Add new voices, LFO targets, scales, or geometric pentatonics with tiny registry edits.
+- **Scales & Geometry**: 14+ scales + geometric pentatonics (circle of fifths, golden spiral, pentagram, equilateral, etc.).
+- **Modulation Matrix**: Route LFOs (including random/smooth random) to parameters, FX, density, etc.
+- **FX Chain**: Ping-pong delay (tempo-sync), procedural reverb, chorus, drive, stereo widener + limiter.
+- **Mood Macros**: Warm / Calm / Glass / Dark / Bright — instantly reshape the character.
+- **Visualizer**: Spectrum, oscilloscope, and orbit view (with geometry polygons).
 - **Transport**: Tempo, density, swing, root note, full generative scheduler with look-ahead timing.
-- **Persistence & Sharing**:
-  - Autosaves to localStorage.
-  - Shareable URL hashes that restore the exact patch.
+- **Persistence & Sharing**: localStorage + shareable URL hashes.
 - **Presets**: Factory presets + ability to save/load your own.
 - **Keyboard Shortcuts**: Space (play/stop), R (randomize), M (panic), etc.
 - **Mobile Friendly**: Touch-friendly controls, responsive layout.
 - **Offline Ready**: Works completely from `file://` with WiFi off.
 
-## Quick Start
+## Quick Start (synth.html)
 
-1. Open `synth.html` in any modern browser (Chrome, Firefox, Safari, Edge).
-2. Click the "Click or tap anywhere to begin" scrim (required for audio unlock).
-3. Press the big **PLAY** button.
-4. Tweak knobs, change scale/geometry/mood, or just let it run.
+1. Open `synth.html` in any modern browser.
+2. Click the scrim to unlock audio.
+3. Press **PLAY**.
+4. Explore or let it run.
 
-That's it. No installation. No accounts.
+## Controls Overview
 
-## Controls
-
-- **Transport bar**: Tempo, Density, Root, Scale, Geometry (overrides scale), Mood
-- **Voices panel**: Add, enable/disable, adjust level/pan/probability, edit voice-specific params
-- **Modulation**: LFOs + matrix for routing modulation
-- **FX**: Delay, Reverb, etc.
-- **Visualizer**: Click tabs to switch modes
-- **Randomize**: Re-roll the generative seed
-- **Share**: Copy a link that restores the exact sound
+- **Transport**: Tempo, Density, Root note, Scale, Geometry, Mood
+- **Voices panel**: Add/edit voices and their parameters
+- **Modulation**: LFOs + routing matrix
+- **FX panel**: Delay, Reverb, etc.
+- **Visualizer**: Switch between spectrum / scope / orbit
+- **Randomize** / **Share** buttons
 
 ## Extensibility
 
-The code is deliberately modular:
+Everything is designed to be easy to extend:
 
 ```js
-// Add a new voice (one-liner in registry)
+// New voice
 App.Voices.registry['myvoice'] = { ... }
 
-// Add a new scale
-App.Scales.registry['myScale'] = { id: 'myScale', label: 'My Scale', intervals: [0,2,3,7,9] }
+// New scale
+App.Scales.registry['myScale'] = { ... }
 
-// Add a geometric pattern
-App.Geometry.registry['myGeom'] = { id: 'myGeom', label: 'My Geom', generate: (root) => [...] }
+// New geometric pattern
+App.Geometry.registry['myGeom'] = { ... }
 ```
-
-Everything auto-wires into the UI.
 
 ## Technical Details
 
-- Pure Web Audio API (no Tone.js or external libs)
-- Procedural reverb impulse response generated in-browser
-- Look-ahead scheduler for rock-solid timing
-- All state is plain JSON (easy to serialize/extend)
+- Pure Web Audio API
+- Procedural reverb (no external IR files)
+- Look-ahead scheduler for timing accuracy
 - Seeded PRNG for deterministic generative output
-- Fully offline capable
+- Fully offline + `file://` compatible
+
+## Repository Contents
+
+| File | Description |
+|------|-------------|
+| `synth.html` | **Main project** — Generative ambient synthesizer (single file) |
+| `resonarium-enhanced.html` | Previous full-featured version with multi-layer synthesis, sequencer, cymatics, presets, timer, WAV export |
+| `resonarium_engineering_platform.html` | Engineering-focused web instrument (earlier iteration) |
+| `resonarium_engineering_platform_bundle.zip` | Zip archive of the engineering platform files |
+| `resonarium_cli_engineering.py` | Python CLI companion for editing parameters, presets, and exporting state |
+| `resonarium_cli_skeleton.py` | Lighter CLI skeleton for quick scripting / batch preset work |
+| `RESONARIUM_ENGINEERING_README.md` | Documentation for the engineering platform |
+| `resonarium_fractal_example_state.json` | Example saved state / patch |
+| `README.md` | This file |
+| `LICENSE` | MIT License |
+
+### Other Tools
+
+- **Python CLIs** (`resonarium_cli_*.py`): Useful for designing patches outside the browser or batch processing. Require `rich` (`pip install rich`).
+- **Engineering Platform**: Earlier, more "DAW-like" version with editable tables, snapshots, and analysis tools.
+
+All HTML tools are completely standalone — just open the `.html` file in a browser.
+
+## Quick Start for Other Files
+
+- Open any `*.html` file directly in your browser.
+- For the Python CLIs: `python3 resonarium_cli_engineering.py` (after `pip install rich`).
 
 ## License
 
 MIT — see [LICENSE](LICENSE) file.
 
-## Repository Contents
-
-This repo contains the full Resonarium project:
-
-- **synth.html** — The main generative ambient synthesizer (see above)
-- **resonarium-enhanced.html** — Previous full-featured version with multi-layer synthesis, sequencer, cymatics, etc.
-- **resonarium_cli_engineering.py** + **resonarium_cli_skeleton.py** — Python CLI tools for parameter editing and preset design
-- **resonarium_engineering_platform.html** + bundle — Earlier engineering-focused web instrument
-- Supporting files: state examples, documentation, etc.
-
 ## Contributing
 
-Pull requests are welcome! Especially new voices, scales, geometries, or visualizer modes for synth.html.
+Pull requests welcome! New voices, scales, modulation targets, or visualizer modes are especially appreciated.
 
 ---
 
-Made with care for people who want beautiful ambient sound without complexity. Open the file and disappear into the sound. 🎵
+Made with care for deep listening and generative sound design. 🎵
