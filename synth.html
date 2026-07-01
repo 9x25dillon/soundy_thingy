@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="color-scheme" content="dark">
+<title>synth • generative ambient</title>
+<style>
+:root {
+  --bg-0: #0a0c10;
+  --bg-1: #10141b;
+  --bg-2: #171d27;
+  --bg-3: #1f2734;
+  --line: #2a3444;
+  --text-0: #e8edf5;
+  --text-1: #9aa7b8;
+  --text-2: #5f6b7c;
+  --accent: #6ad6c0;
+  --accent-2: #a98cff;
+  --accent-3: #ffb26b;
+  --danger: #ff6b7a;
+  --radius: 8px;
+  --space: 8px;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg-0); color: var(--text-0); font-family: var(--font-sans); min-height: 100vh; overflow-x: hidden; }
+body { padding: 16px; }
+
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+h1 { margin: 0; font-size: 18px; letter-spacing: -.5px; font-weight: 600; }
+.header-right { display: flex; gap: 8px; align-items: center; }
+
+.transport { display: flex; align-items: center; gap: 8px; background: var(--bg-1); padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--line); flex-wrap: wrap; }
+
+.rack { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 12px; }
+
+.panel { background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+.panel h3 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-1); }
+
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 10px; }
+.control { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.control label { font-size: 10px; color: var(--text-2); text-align: center; }
+.knob { width: 52px; height: 52px; border-radius: 50%; background: var(--bg-3); border: 1px solid var(--line); position: relative; cursor: ns-resize; touch-action: none; }
+.knob svg { width: 100%; height: 100%; }
+.knob .value { font-family: var(--font-mono); font-size: 10px; color: var(--text-1); margin-top: 2px; }
+
+canvas { width: 100%; height: 220px; background: var(--bg-0); border: 1px solid var(--line); border-radius: var(--radius); display: block; }
+
+.voices-list { display: flex; flex-direction: column; gap: 8px; }
+.voice { display: flex; align-items: center; gap: 8px; background: var(--bg-2); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); }
+.voice .name { flex: 1; font-size: 12px; }
+.voice button { font-size: 10px; padding: 2px 6px; }
+
+.matrix-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; font-size: 12px; }
+.matrix-row select, .matrix-row input { font-size: 11px; }
+
+#toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--bg-2); border: 1px solid var(--accent); padding: 8px 14px; border-radius: 999px; font-size: 12px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+
+.scrim { position: fixed; inset: 0; background: rgba(10,12,16,.85); display: grid; place-items: center; z-index: 100; font-size: 14px; color: var(--text-1); cursor: pointer; }
+.scrim.hidden { display: none; }
+
+@media (max-width: 640px) {
+  .rack { grid-template-columns: 1fr; }
+  canvas { height: 160px; }
+}
+</style>
+</head>
+<body>
+
+<div id="scrim" class="scrim">▶ Click or tap anywhere to begin</div>
+
+<header>
+  <h1>synth</h1>
+  <div class="header-right">
+    <div>
+      <label style="font-size:10px;color:var(--text-2)">MASTER</label>
+      <input id="master-vol" type="range" min="0" max="1" step="0.01" value="0.7" style="width:100px;vertical-align:middle">
+      <span id="master-db" style="font-family:var(--font-mono);font-size:11px">−3.0 dB</span>
+    </div>
+    <button id="panic" style="padding:6px 10px;background:var(--danger);color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer">PANIC</button>
+    <button id="play" style="padding:6px 14px;background:var(--accent);color:#0a0c10;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer">▶ PLAY</button>
+  </div>
+</header>
+
+<div class="transport">
+  <label style="font-size:10px">TEMPO</label>
+  <input id="tempo" type="range" min="30" max="180" step="1" value="68">
+  <span id="tempo-val" style="font-family:var(--font-mono);min-width:36px">68</span>
+
+  <label style="font-size:10px">DENSITY</label>
+  <input id="density" type="range" min="0" max="1" step="0.01" value="0.45">
+  <span id="density-val" style="font-family:var(--font-mono);min-width:32px">45</span>
+
+  <label style="font-size:10px">ROOT</label>
+  <select id="root">
+    <option value="57">A</option><option value="59">B</option><option value="48">C</option>
+    <option value="50">D</option><option value="52">E</option><option value="53">F</option>
+    <option value="55">G</option>
+  </select>
+
+  <label style="font-size:10px">SCALE</label>
+  <select id="scale"></select>
+
+  <label style="font-size:10px">GEOM</label>
+  <select id="geometry"></select>
+
+  <label style="font-size:10px">MOOD</label>
+  <select id="mood">
+    <option value="warm">warm</option><option value="calm">calm</option><option value="glass">glass</option>
+    <option value="dark">dark</option><option value="bright">bright</option>
+  </select>
+
+  <button id="randomize" style="margin-left:auto;padding:4px 10px;background:var(--bg-2);color:var(--text-0);border:1px solid var(--line);border-radius:4px;font-size:10px">RANDOMIZE</button>
+  <button id="share" style="padding:4px 10px;background:var(--bg-2);color:var(--text-0);border:1px solid var(--line);border-radius:4px;font-size:10px">SHARE</button>
+</div>
+
+<div class="rack">
+
+  <div class="panel">
+    <h3>VOICES</h3>
+    <div id="voices" class="voices-list"></div>
+    <button id="add-voice" style="margin-top:8px;width:100%;padding:6px;background:var(--bg-2);color:var(--text-0);border:1px solid var(--line);border-radius:4px;font-size:11px">+ ADD VOICE</button>
+  </div>
+
+  <div class="panel">
+    <h3>MODULATION</h3>
+    <div id="lfos"></div>
+    <div style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:10px;color:var(--text-2)">MOD MATRIX</span>
+        <button id="add-route" style="font-size:10px;padding:2px 8px">+ ROUTE</button>
+      </div>
+      <div id="matrix"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>FX</h3>
+    <div id="fx"></div>
+  </div>
+
+</div>
+
+<canvas id="viz" width="900" height="220"></canvas>
+
+<div style="display:flex;gap:8px;margin-top:8px;font-size:11px;align-items:center;justify-content:space-between">
+  <div>
+    <span id="patch-hash" style="font-family:var(--font-mono);color:var(--text-2)"></span>
+  </div>
+  <div>
+    <button id="save" style="padding:4px 8px;font-size:10px">SAVE PATCH</button>
+    <button id="load" style="padding:4px 8px;font-size:10px">LOAD</button>
+    <button id="help" style="padding:4px 8px;font-size:10px">?</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ===== 0. APP NAMESPACE + UTILS ===== */
+const App = {
+  utils: {},
+  Scales: {},
+  Geometry: {},
+  Audio: {},
+  Voices: {},
+  Mod: {},
+  Scheduler: {},
+  FX: {},
+  State: {},
+  UI: {},
+  Viz: {},
+  Boot: {}
+};
+
+App.utils = (() => {
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const dbToGain = db => Math.pow(10, db / 20);
+  const gainToDb = g => 20 * Math.log10(Math.max(1e-5, g));
+  const noteToFreq = (midi, a4 = 440) => a4 * Math.pow(2, (midi - 69) / 12);
+  const seededRandom = (seed) => {
+    let s = seed >>> 0;
+    return () => {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      return (s >>> 0) / 0xffffffff;
+    };
+  };
+  const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+  const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id' + Date.now() + Math.random().toString(36).slice(2));
+  return { clamp, lerp, dbToGain, gainToDb, noteToFreq, seededRandom, debounce, uuid };
+})();
+
+/* ===== 1. SCALES ===== */
+App.Scales.registry = {
+  major: { id: 'major', label: 'Major', intervals: [0,2,4,5,7,9,11] },
+  minor: { id: 'minor', label: 'Minor (Nat)', intervals: [0,2,3,5,7,8,10] },
+  dorian: { id: 'dorian', label: 'Dorian', intervals: [0,2,3,5,7,9,10] },
+  phrygian: { id: 'phrygian', label: 'Phrygian', intervals: [0,1,3,5,7,8,10] },
+  lydian: { id: 'lydian', label: 'Lydian', intervals: [0,2,4,6,7,9,11] },
+  mixolydian: { id: 'mixolydian', label: 'Mixolydian', intervals: [0,2,4,5,7,9,10] },
+  harmonicMinor: { id: 'harmonicMinor', label: 'Harm Minor', intervals: [0,2,3,5,7,8,11] },
+  wholeTone: { id: 'wholeTone', label: 'Whole Tone', intervals: [0,2,4,6,8,10] },
+  pentatonicMajor: { id: 'pentatonicMajor', label: 'Pent Major', intervals: [0,2,4,7,9] },
+  pentatonicMinor: { id: 'pentatonicMinor', label: 'Pent Minor', intervals: [0,3,5,7,10] },
+  hirajoshi: { id: 'hirajoshi', label: 'Hirajoshi', intervals: [0,2,3,7,8] },
+  insen: { id: 'insen', label: 'Insen', intervals: [0,1,5,7,10] },
+  kumoi: { id: 'kumoi', label: 'Kumoi', intervals: [0,2,3,7,9] },
+  chromatic: { id: 'chromatic', label: 'Chromatic', intervals: [0,1,2,3,4,5,6,7,8,9,10,11] }
+};
+
+/* ===== 2. GEOMETRY ===== */
+App.Geometry.registry = {
+  circleOfFifths: { id: 'circleOfFifths', label: 'Circle of 5ths', generate: (root) => [0,7,2,9,4].map(d => root + d) },
+  circleOfFourths: { id: 'circleOfFourths', label: 'Circle of 4ths', generate: (root) => [0,5,10,3,8].map(d => root + d) },
+  goldenSpiral: { id: 'goldenSpiral', label: 'Golden Spiral', generate: (root) => [0,7,11,4,9].map(d => root + d) },
+  pentagram: { id: 'pentagram', label: 'Pentagram', generate: (root) => [0,2,7,4,9].map(d => root + d) },
+  equilateral: { id: 'equilateral', label: 'Equilateral', generate: (root) => [0,4,8,3,7].map(d => root + d) }
+};
+
+/* ===== 3. AUDIO CORE ===== */
+App.Audio = (() => {
+  let ctx, masterGain, limiter, analyser, reverbBus, delayBus, reverbNode, delayL, delayR, delayFB, chorusBus;
+  let isRunning = false;
+
+  function init() {
+    if (ctx) return ctx;
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = ctx.createGain();
+    masterGain.gain.value = 0.7;
+
+    limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -6;
+    limiter.ratio.value = 12;
+    limiter.knee.value = 0;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.1;
+
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.6;
+
+    // Procedural Reverb
+    const ir = createIR(3.2, 0.5);
+    reverbNode = ctx.createConvolver();
+    reverbNode.buffer = ir;
+    reverbBus = ctx.createGain();
+    reverbBus.gain.value = 0.35;
+    reverbBus.connect(reverbNode);
+    reverbNode.connect(limiter);
+
+    // Delay
+    delayL = ctx.createDelay(2);
+    delayR = ctx.createDelay(2);
+    delayFB = ctx.createGain();
+    delayFB.gain.value = 0.4;
+    const delayFilter = ctx.createBiquadFilter();
+    delayFilter.type = 'lowpass';
+    delayFilter.frequency.value = 2200;
+    delayL.connect(delayFilter);
+    delayFilter.connect(delayFB);
+    delayFB.connect(delayL);
+    delayFB.connect(delayR);
+    delayL.connect(delayR);
+    delayR.connect(delayL);
+    delayBus = ctx.createGain();
+    delayBus.gain.value = 0.28;
+    delayL.connect(delayBus);
+
+    // Simple chorus
+    chorusBus = ctx.createGain();
+    chorusBus.gain.value = 0.25;
+
+    // Chain
+    const drive = ctx.createWaveShaper();
+    drive.curve = new Float32Array(1024).map((_, i) => Math.tanh((i/511 - 1) * 1.5) * 0.9);
+    const width = ctx.createStereoPanner();
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 8500;
+
+    // master
+    limiter.connect(lp);
+    lp.connect(width);
+    width.connect(masterGain);
+    masterGain.connect(analyser);
+    analyser.connect(ctx.destination);
+
+    // Buses to master
+    delayBus.connect(limiter);
+    reverbBus.connect(limiter);
+    chorusBus.connect(limiter);
+
+    return ctx;
+  }
+
+  function createIR(size, damp) {
+    const len = Math.floor(ctx.sampleRate * size);
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const data = buf.getChannelData(c);
+      for (let i = 0; i < len; i++) {
+        const t = i / len;
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 1.8) * (1 - damp * t * 0.7);
+      }
+    }
+    return buf;
+  }
+
+  function getContext() { return ctx; }
+  function getMasterGain() { return masterGain; }
+  function getAnalyser() { return analyser; }
+  function getReverbBus() { return reverbBus; }
+  function getDelayBus() { return delayBus; }
+  function getChorusBus() { return chorusBus; }
+
+  function resume() {
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+    isRunning = true;
+  }
+
+  return { init, getContext, getMasterGain, getAnalyser, getReverbBus, getDelayBus, getChorusBus, resume, createIR };
+})();
+
+/* ===== 4. VOICES ===== */
+App.Voices = (() => {
+  const registry = {};
+
+  function addVoice(type, def) { registry[type] = def; }
+
+  // PAD
+  addVoice('pad', {
+    label: 'Pad',
+    defaults: { attack: 1.8, release: 3.5, detune: 0.6, harmonics: 0.7, cutoff: 1200, resonance: 0.6, shimmer: 0.25 },
+    params: [
+      { id: 'attack', label: 'Attack', min: 0.1, max: 6, step: 0.1, default: 1.8, curve: 'exp' },
+      { id: 'release', label: 'Release', min: 0.5, max: 12, step: 0.1, default: 3.5 },
+      { id: 'cutoff', label: 'Cutoff', min: 200, max: 8000, step: 10, default: 1200, curve: 'exp' },
+      { id: 'resonance', label: 'Reso', min: 0.2, max: 3.5, step: 0.1, default: 0.6 },
+      { id: 'shimmer', label: 'Shimmer', min: 0, max: 0.8, step: 0.01, default: 0.25 }
+    ],
+    build(ctx, busIn, params) {
+      const oscs = [];
+      const gains = [];
+      for (let i = 0; i < 3; i++) {
+        const o = ctx.createOscillator();
+        o.type = i === 0 ? 'sawtooth' : 'triangle';
+        o.detune.value = (i - 1) * 4 + (params.detune || 0) * (i === 1 ? 1 : -1);
+        const g = ctx.createGain();
+        g.gain.value = 0.33;
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = params.cutoff || 1200;
+        filter.Q.value = params.resonance || 0.6;
+        o.connect(g);
+        g.connect(filter);
+        filter.connect(busIn);
+        o.start();
+        oscs.push(o); gains.push(g);
+      }
+      return {
+        noteOn(freq, vel = 0.8, time = ctx.currentTime) {
+          oscs.forEach((o, i) => o.frequency.setValueAtTime(freq * (1 + (i-1)*0.001), time));
+          gains.forEach(g => g.gain.setTargetAtTime(vel * 0.33, time, 0.02));
+        },
+        noteOff(time = ctx.currentTime) {
+          gains.forEach(g => g.gain.setTargetAtTime(0.0001, time, (params.release || 3) * 0.2));
+        },
+        dispose() { oscs.forEach(o => { try { o.stop(); o.disconnect(); } catch(e){} }); }
+      };
+    }
+  });
+
+  // PLUCK
+  addVoice('pluck', {
+    label: 'Pluck',
+    defaults: { decay: 1.2, tone: 0.7, spread: 0.4 },
+    params: [
+      { id: 'decay', label: 'Decay', min: 0.2, max: 4, step: 0.05, default: 1.2 },
+      { id: 'tone', label: 'Tone', min: 200, max: 6000, step: 10, default: 1800, curve: 'exp' },
+      { id: 'spread', label: 'Spread', min: 0, max: 1, step: 0.01, default: 0.4 }
+    ],
+    build(ctx, busIn, params) {
+      return {
+        noteOn(freq, vel = 0.9, time = ctx.currentTime) {
+          const noise = ctx.createBufferSource();
+          const buf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+          const d = buf.getChannelData(0);
+          for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+          noise.buffer = buf;
+          const filter = ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.value = params.tone || 1800;
+          const del = ctx.createDelay(1);
+          del.delayTime.value = 1 / freq;
+          const fb = ctx.createGain();
+          fb.gain.value = 0.82;
+          const out = ctx.createGain();
+          out.gain.value = vel * 0.8;
+          noise.connect(filter);
+          filter.connect(del);
+          del.connect(fb);
+          fb.connect(del);
+          del.connect(out);
+          out.connect(busIn);
+          noise.start(time);
+          out.gain.setTargetAtTime(0.0001, time + (params.decay || 1.2), 0.08);
+          setTimeout(() => { try { noise.disconnect(); del.disconnect(); out.disconnect(); } catch(e){} }, 8000);
+        },
+        noteOff() {},
+        dispose() {}
+      };
+    }
+  });
+
+  // BASS
+  addVoice('bass', {
+    label: 'Bass',
+    defaults: { sub: 0.9, drive: 0.3, glide: 0.08 },
+    params: [
+      { id: 'sub', label: 'Sub', min: 0, max: 1, step: 0.01, default: 0.9 },
+      { id: 'drive', label: 'Drive', min: 0, max: 1, step: 0.01, default: 0.3 }
+    ],
+    build(ctx, busIn) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      const g = ctx.createGain();
+      g.gain.value = 0.8;
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = new Float32Array(1024).map((_,i) => Math.tanh((i/512-1)*2.2));
+      osc.connect(g);
+      g.connect(shaper);
+      shaper.connect(busIn);
+      osc.start();
+      let lastFreq = 55;
+      return {
+        noteOn(freq, vel = 0.85, time = ctx.currentTime) {
+          osc.frequency.setTargetAtTime(freq * 0.5, time, 0.03);
+          g.gain.setTargetAtTime(vel * 0.85, time, 0.02);
+          lastFreq = freq;
+        },
+        noteOff() {},
+        dispose() { try { osc.stop(); } catch(e){} }
+      };
+    }
+  });
+
+  // BELL
+  addVoice('bell', {
+    label: 'Bell',
+    defaults: { ratio: 2.4, decay: 2.8, inharmonicity: 0.8 },
+    params: [
+      { id: 'ratio', label: 'Ratio', min: 1.5, max: 3.5, step: 0.1, default: 2.4 },
+      { id: 'decay', label: 'Decay', min: 0.5, max: 6, step: 0.1, default: 2.8 },
+      { id: 'inharmonicity', label: 'Inharm', min: 0, max: 2, step: 0.05, default: 0.8 }
+    ],
+    build(ctx, busIn, params) {
+      return {
+        noteOn(freq, vel = 0.75, time = ctx.currentTime) {
+          const c = ctx.createOscillator();
+          const m = ctx.createOscillator();
+          c.type = 'sine'; m.type = 'sine';
+          const cG = ctx.createGain();
+          const mG = ctx.createGain();
+          c.frequency.value = freq;
+          m.frequency.value = freq * (params.ratio || 2.4);
+          const out = ctx.createGain();
+          out.gain.value = vel * 0.6;
+          c.connect(cG);
+          m.connect(mG);
+          cG.connect(out);
+          mG.connect(out);
+          out.connect(busIn);
+          c.start(time);
+          m.start(time);
+          const d = params.decay || 2.8;
+          out.gain.setTargetAtTime(0.0001, time, d * 0.3);
+          setTimeout(() => { try { c.stop(); m.stop(); } catch(e){} }, d * 1300);
+        },
+        noteOff() {},
+        dispose() {}
+      };
+    }
+  });
+
+  // DRONE
+  addVoice('drone', {
+    label: 'Drone',
+    defaults: { fifth: 0.7, movement: 0.4, breath: 0.25 },
+    params: [
+      { id: 'fifth', label: 'Fifth', min: 0, max: 1, step: 0.01, default: 0.7 },
+      { id: 'movement', label: 'Movement', min: 0, max: 1, step: 0.01, default: 0.4 },
+      { id: 'breath', label: 'Breath', min: 0, max: 0.8, step: 0.01, default: 0.25 }
+    ],
+    build(ctx, busIn, params) {
+      const o1 = ctx.createOscillator();
+      const o2 = ctx.createOscillator();
+      o1.type = 'sine'; o2.type = 'sine';
+      const g = ctx.createGain();
+      g.gain.value = 0.55;
+      o1.connect(g);
+      o2.connect(g);
+      g.connect(busIn);
+      o1.start();
+      o2.start();
+      return {
+        noteOn(freq, vel, time = ctx.currentTime) {
+          o1.frequency.setTargetAtTime(freq, time, 0.4);
+          o2.frequency.setTargetAtTime(freq * 1.5, time, 0.4);
+          g.gain.setTargetAtTime(vel * 0.55 * (1 + (params.breath || 0) * 0.3), time, 0.6);
+        },
+        noteOff() {},
+        dispose() { try { o1.stop(); o2.stop(); } catch(e){} }
+      };
+    }
+  });
+
+  // NOISE
+  addVoice('noise', {
+    label: 'Noise',
+    defaults: { color: 1800, band: 1.2, rate: 0.3 },
+    params: [
+      { id: 'color', label: 'Color', min: 200, max: 8000, step: 10, default: 1800, curve: 'exp' },
+      { id: 'band', label: 'Band', min: 0.3, max: 4, step: 0.1, default: 1.2 }
+    ],
+    build(ctx, busIn, params) {
+      const n = ctx.createBufferSource();
+      const b = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+      const d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      n.buffer = b; n.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = params.color || 1800;
+      f.Q.value = params.band || 1.2;
+      const g = ctx.createGain();
+      g.gain.value = 0.2;
+      n.connect(f);
+      f.connect(g);
+      g.connect(busIn);
+      n.start();
+      return {
+        noteOn(freq, vel = 0.5) { g.gain.setTargetAtTime(vel * 0.2, ctx.currentTime, 0.1); },
+        noteOff() { g.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.6); },
+        dispose() { try { n.stop(); } catch(e){} }
+      };
+    }
+  });
+
+  return { registry: Object.freeze(registry), addVoice };
+})();
+
+/* ===== 5. MODULATION ===== */
+App.Mod = (() => {
+  const sources = {};
+  const targets = {};
+
+  function registerSource(id, label, getValue) { sources[id] = { id, label, getValue }; }
+  function registerTarget(id, label, apply) { targets[id] = { id, label, apply }; }
+
+  // Basic LFO sources will be driven from scheduler
+  registerSource('lfo1', 'LFO 1', () => 0);
+  registerSource('lfo2', 'LFO 2', () => 0);
+  registerSource('lfo3', 'LFO 3', () => 0);
+  registerSource('random', 'Random', () => Math.random() * 2 - 1);
+
+  return { sources, targets, registerSource, registerTarget };
+})();
+
+/* ===== 6. SCHEDULER ===== */
+App.Scheduler = (() => {
+  let timer = null;
+  let step = 0;
+  let lastTime = 0;
+  const lookAhead = 0.12;
+
+  function start() {
+    if (timer) return;
+    timer = setInterval(tick, 25);
+  }
+  function stop() { if (timer) clearInterval(timer); timer = null; }
+
+  function tick() {
+    const audio = App.Audio.getContext();
+    if (!audio || !App.State.current.transport.playing) return;
+    const now = audio.currentTime;
+    const tempo = App.State.current.transport.tempo || 68;
+    const stepDur = 60 / tempo / 4; // 16th
+    const swing = App.State.current.transport.swing || 0;
+    const density = App.State.current.transport.density || 0.45;
+
+    while (lastTime < now + lookAhead) {
+      const isOdd = step % 2 === 1;
+      const scheduledTime = lastTime + (isOdd ? swing * stepDur * 0.5 : 0);
+
+      App.State.current.voices.forEach((v, vi) => {
+        if (!v.enabled || App.utils.rand() > density * (v.probability || 1)) return;
+        const freq = pickNote(vi);
+        const vel = 0.6 + App.utils.rand() * 0.35;
+        const voiceDef = App.Voices.registry[v.type];
+        if (voiceDef && App.State.voiceEngines[vi]) {
+          App.State.voiceEngines[vi].noteOn(freq, vel, scheduledTime);
+          const dur = (v.type === 'pad' || v.type === 'drone') ? stepDur * 3 : stepDur * 1.5;
+          setTimeout(() => {
+            if (App.State.voiceEngines[vi]) App.State.voiceEngines[vi].noteOff(scheduledTime + dur);
+          }, (scheduledTime - now) * 1000 + dur * 1000 + 50);
+        }
+      });
+
+      lastTime += stepDur;
+      step++;
+    }
+  }
+
+  function pickNote(voiceIdx) {
+    const patch = App.State.current;
+    const root = patch.tonality.root || 57;
+    const scale = App.Scales.registry[patch.tonality.scaleId] || App.Scales.registry.dorian;
+    let deg = Math.floor(App.utils.rand() * scale.intervals.length);
+    const prev = App.State.lastNotes[voiceIdx] || root;
+    // prefer small steps
+    if (App.utils.rand() < 0.65) deg = Math.max(0, Math.min(scale.intervals.length-1, (App.State.lastDegs[voiceIdx] || 0) + (App.utils.rand() < 0.5 ? -1 : 1)));
+    const interval = scale.intervals[deg];
+    let f = App.utils.noteToFreq(root + interval);
+    App.State.lastNotes[voiceIdx] = root + interval;
+    App.State.lastDegs[voiceIdx] = deg;
+    return f * Math.pow(2, (patch.tonality.octaveRange?.[0] || 2) + (voiceIdx % 3));
+  }
+
+  return { start, stop };
+})();
+
+/* ===== 7. FX ===== */
+App.FX = (() => {
+  let delay, reverb, chorus, drive, width;
+  function wire() {
+    const a = App.Audio;
+    // simple wiring stub - in real would connect properly
+    // (full chain implemented inline in init for brevity)
+  }
+  return { wire };
+})();
+
+/* ===== 8. STATE ===== */
+App.State = (() => {
+  let current = null;
+  const voiceEngines = [];
+  const lastNotes = {};
+  const lastDegs = {};
+
+  function defaults() {
+    return {
+      version: 1,
+      seed: Math.floor(Math.random() * 2 ** 32),
+      master: { volume: 0.7, muted: false },
+      transport: { playing: false, tempo: 68, swing: 0.12, density: 0.45 },
+      tonality: { root: 57, scaleId: 'dorian', geometryId: null, octaveRange: [2,5], voicing: 'spread' },
+      mood: 'warm',
+      voices: [
+        { uid: App.utils.uuid(), type: 'pad', label: 'Pad', enabled: true, level: 0.55, pan: -0.2, octave: 0, probability: 0.9, params: { attack: 1.6, release: 3.2, detune: 0.5, cutoff: 1400, resonance: 0.55, shimmer: 0.3 }, routeToFx: { delay: 0.3, reverb: 0.45, chorus: 0.2 } },
+        { uid: App.utils.uuid(), type: 'pluck', label: 'Pluck', enabled: true, level: 0.35, pan: 0.3, octave: 1, probability: 0.75, params: { decay: 1.1, tone: 2100, spread: 0.5 }, routeToFx: { delay: 0.6, reverb: 0.2, chorus: 0.1 } }
+      ],
+      lfos: [
+        { uid: 'l1', enabled: true, shape: 'sine', rateHz: 0.12, depth: 0.45, phase: 0, bipolar: true },
+        { uid: 'l2', enabled: true, shape: 'triangle', rateHz: 0.07, depth: 0.3, phase: 0.3, bipolar: true }
+      ],
+      modMatrix: [],
+      fx: { delay: { on: true, timeMs: 375, feedback: 0.42, mix: 0.28 }, reverb: { on: true, size: 3.2, mix: 0.38 } },
+      ui: { meterStyle: 'spectrum' }
+    };
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem('synth.patch.v1');
+      if (raw) current = JSON.parse(raw);
+    } catch (e) {}
+    if (!current) current = defaults();
+    // ensure minimal
+    if (!current.voices || current.voices.length === 0) current.voices = defaults().voices;
+    return current;
+  }
+
+  function save() {
+    try { localStorage.setItem('synth.patch.v1', JSON.stringify(current)); } catch(e) {}
+  }
+
+  function setPatch(p) { current = p; save(); }
+
+  function get() { return current; }
+
+  return { defaults, load, save, get, setPatch, voiceEngines, lastNotes, lastDegs };
+})();
+
+/* ===== 9. UI ===== */
+App.UI = (() => {
+  function createKnob(parent, labelText, min, max, step, value, onChange, isExp = false) {
+    const wrap = document.createElement('div');
+    wrap.className = 'control';
+    wrap.innerHTML = `<label>${labelText}</label>`;
+    const knob = document.createElement('div');
+    knob.className = 'knob';
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute('viewBox', '0 0 52 52');
+    svg.innerHTML = `<circle cx="26" cy="26" r="21" fill="none" stroke="#2a3444" stroke-width="3"/><path id="arc" stroke="#6ad6c0" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+    knob.appendChild(svg);
+    wrap.appendChild(knob);
+
+    let val = value;
+    function update(v) {
+      val = App.utils.clamp(v, min, max);
+      const pct = (val - min) / (max - min);
+      const angle = -135 + pct * 270;
+      const arc = svg.querySelector('#arc');
+      const rad = (angle * Math.PI / 180);
+      const x = 26 + Math.cos(rad) * 21;
+      const y = 26 + Math.sin(rad) * 21;
+      arc.setAttribute('d', `M26,5 A21,21 0 ${pct>0.5?1:0} 1 ${x},${y}`);
+      onChange(val);
+    }
+    update(val);
+
+    let dragging = false, startY;
+    knob.onpointerdown = e => { dragging = true; startY = e.clientY; knob.setPointerCapture(e.pointerId); };
+    document.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      const dy = startY - e.clientY;
+      const range = max - min;
+      let nv = val + dy * (range / 120) * (e.shiftKey ? 0.2 : 1);
+      update(nv);
+      startY = e.clientY;
+    });
+    document.addEventListener('pointerup', () => dragging = false);
+    knob.ondblclick = () => update(value);
+    return { element: wrap, set: update };
+  }
+
+  return { createKnob };
+})();
+
+/* ===== 10. VISUALIZER ===== */
+App.Viz = (() => {
+  let canvas, ctx, raf;
+  function init() {
+    canvas = document.getElementById('viz');
+    ctx = canvas.getContext('2d');
+    function draw() {
+      const w = canvas.width, h = canvas.height;
+      ctx.fillStyle = '#0a0c10';
+      ctx.fillRect(0,0,w,h);
+      const analyser = App.Audio.getAnalyser();
+      if (!analyser) { raf = requestAnimationFrame(draw); return; }
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(data);
+      ctx.strokeStyle = '#6ad6c0';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i=0; i < data.length; i += 2) {
+        const x = (i / data.length) * w;
+        const y = h - (data[i] / 255) * (h * 0.9);
+        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+      raf = requestAnimationFrame(draw);
+    }
+    draw();
+  }
+  return { init };
+})();
+
+/* ===== 11. BOOT ===== */
+App.Boot = (() => {
+  function boot() {
+    const patch = App.State.load();
+    App.State.setPatch(patch);
+
+    // Build scale + geometry dropdowns
+    const scaleSel = document.getElementById('scale');
+    Object.values(App.Scales.registry).forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.id; o.textContent = s.label;
+      scaleSel.appendChild(o);
+    });
+    scaleSel.value = patch.tonality.scaleId || 'dorian';
+    scaleSel.onchange = () => { patch.tonality.scaleId = scaleSel.value; App.State.save(); };
+
+    const geomSel = document.getElementById('geometry');
+    Object.values(App.Geometry.registry).forEach(g => {
+      const o = document.createElement('option');
+      o.value = g.id; o.textContent = g.label;
+      geomSel.appendChild(o);
+    });
+    const none = document.createElement('option');
+    none.value = ''; none.textContent = '(off)';
+    geomSel.prepend(none);
+    geomSel.value = patch.tonality.geometryId || '';
+    geomSel.onchange = () => { patch.tonality.geometryId = geomSel.value || null; App.State.save(); };
+
+    // Mood
+    document.getElementById('mood').value = patch.mood;
+    document.getElementById('mood').onchange = e => { patch.mood = e.target.value; App.State.save(); };
+
+    // Tempo & density
+    const tempo = document.getElementById('tempo');
+    const tempoVal = document.getElementById('tempo-val');
+    tempo.value = patch.transport.tempo;
+    tempoVal.textContent = patch.transport.tempo;
+    tempo.oninput = () => { patch.transport.tempo = +tempo.value; tempoVal.textContent = tempo.value; App.State.save(); };
+
+    const dens = document.getElementById('density');
+    const densVal = document.getElementById('density-val');
+    dens.value = patch.transport.density;
+    densVal.textContent = Math.round(patch.transport.density * 100);
+    dens.oninput = () => { patch.transport.density = +dens.value; densVal.textContent = Math.round(+dens.value*100); App.State.save(); };
+
+    // Master
+    const mv = document.getElementById('master-vol');
+    const mdb = document.getElementById('master-db');
+    mv.value = patch.master.volume;
+    mdb.textContent = App.utils.gainToDb(patch.master.volume).toFixed(1) + ' dB';
+    mv.oninput = () => {
+      patch.master.volume = +mv.value;
+      const g = App.Audio.getMasterGain();
+      if (g) g.gain.value = patch.master.volume;
+      mdb.textContent = App.utils.gainToDb(patch.master.volume).toFixed(1) + ' dB';
+      App.State.save();
+    };
+
+    // Play button
+    const playBtn = document.getElementById('play');
+    playBtn.onclick = () => {
+      App.Audio.init();
+      App.Audio.resume();
+      patch.transport.playing = !patch.transport.playing;
+      playBtn.textContent = patch.transport.playing ? '■ STOP' : '▶ PLAY';
+      if (patch.transport.playing) App.Scheduler.start();
+      else App.Scheduler.stop();
+      App.State.save();
+    };
+
+    document.getElementById('panic').onclick = () => {
+      patch.transport.playing = false;
+      playBtn.textContent = '▶ PLAY';
+      App.Scheduler.stop();
+      // stop all voices
+      App.State.voiceEngines.forEach(e => e && e.noteOff && e.noteOff());
+      App.State.save();
+    };
+
+    // Simple voices UI
+    const voicesEl = document.getElementById('voices');
+    function renderVoices() {
+      voicesEl.innerHTML = '';
+      patch.voices.forEach((v, i) => {
+        const d = document.createElement('div');
+        d.className = 'voice';
+        d.innerHTML = `
+          <input value="${v.label}" style="width:70px;background:transparent;border:none;color:#fff" onchange="this.value && (patch.voices[${i}].label = this.value)">
+          <span style="font-size:10px">${v.type}</span>
+          <input type="checkbox" ${v.enabled ? 'checked' : ''} onchange="patch.voices[${i}].enabled = this.checked">
+          <button onclick="App.State.voiceEngines[${i}] && App.State.voiceEngines[${i}].dispose && App.State.voiceEngines[${i}].dispose(); patch.voices.splice(${i},1); renderVoices();">×</button>
+        `;
+        voicesEl.appendChild(d);
+      });
+    }
+    renderVoices();
+    document.getElementById('add-voice').onclick = () => {
+      const types = Object.keys(App.Voices.registry);
+      const t = types[Math.floor(Math.random()*types.length)];
+      patch.voices.push({ uid: App.utils.uuid(), type: t, label: App.Voices.registry[t].label, enabled: true, level: 0.5, pan: 0, octave: 0, probability: 0.8, params: {...App.Voices.registry[t].defaults}, routeToFx: {delay:0.3,reverb:0.3,chorus:0.1} });
+      renderVoices();
+      App.State.save();
+    };
+
+    // FX simple controls
+    const fxEl = document.getElementById('fx');
+    fxEl.innerHTML = `
+      <div>Delay mix <input type="range" min="0" max="1" step="0.01" value="${patch.fx.delay.mix}" oninput="patch.fx.delay.mix=+this.value;App.State.save()"></div>
+      <div>Reverb mix <input type="range" min="0" max="1" step="0.01" value="${patch.fx.reverb.mix}" oninput="patch.fx.reverb.mix=+this.value;App.State.save()"></div>
+    `;
+
+    // Visualizer
+    App.Viz.init();
+
+    // Audio init on scrim
+    const scrim = document.getElementById('scrim');
+    scrim.onclick = () => {
+      App.Audio.init();
+      App.Audio.resume();
+      scrim.classList.add('hidden');
+      // build initial voices
+      patch.voices.forEach((v, i) => {
+        const def = App.Voices.registry[v.type];
+        if (def) {
+          const bus = App.Audio.getDelayBus(); // simplified bus
+          App.State.voiceEngines[i] = def.build(App.Audio.getContext(), bus, v.params);
+        }
+      });
+      if (patch.transport.playing) App.Scheduler.start();
+    };
+
+    // Randomize
+    document.getElementById('randomize').onclick = () => {
+      patch.seed = Math.floor(Math.random()*2**32);
+      patch.tonality.root = 48 + Math.floor(App.utils.rand()*12);
+      App.State.save();
+      if (patch.transport.playing) {
+        App.Scheduler.stop();
+        App.Scheduler.start();
+      }
+    };
+
+    // Share
+    document.getElementById('share').onclick = () => {
+      const compact = JSON.stringify(patch);
+      const hash = '#p=' + btoa(compact).replace(/\+/g,'-').replace(/\//g,'_');
+      navigator.clipboard.writeText(location.origin + location.pathname + hash);
+      const t = document.getElementById('toast');
+      t.textContent = 'Link copied to clipboard';
+      t.style.opacity = '1';
+      setTimeout(() => t.style.opacity = '0', 1400);
+    };
+
+    // Help
+    document.getElementById('help').onclick = () => alert('Space: play/stop • R: randomize • M: panic • Click scrim to start audio');
+
+    // Keyboard
+    document.addEventListener('keydown', e => {
+      if (e.key === ' ') { e.preventDefault(); document.getElementById('play').click(); }
+      if (e.key.toLowerCase() === 'r') document.getElementById('randomize').click();
+      if (e.key.toLowerCase() === 'm') document.getElementById('panic').click();
+    });
+
+    // Initial UI
+    document.getElementById('root').value = patch.tonality.root;
+    document.getElementById('root').onchange = e => { patch.tonality.root = +e.target.value; App.State.save(); };
+
+    // Boot visualizer & audio readiness
+    console.log('%c[synth] Generative ambient synthesizer ready.', 'color:#6ad6c0');
+  }
+  return { boot };
+})();
+
+window.addEventListener('DOMContentLoaded', () => App.Boot.boot());
+</script>
+</body>
+</html>
