@@ -1,0 +1,132 @@
+{
+  "schema": "resonarium.state.v2",
+  "createdAt": "2026-07-01T15:21:58.253682+00:00",
+  "sweeps": [
+    {
+      "f": 110,
+      "width": 45.30495168499706,
+      "shape": "up",
+      "wave": "sine",
+      "lvl": 0.38,
+      "on": true,
+      "pass": 2.912461179749811
+    },
+    {
+      "f": 178,
+      "width": 30.742645786248005,
+      "shape": "down",
+      "wave": "sine",
+      "lvl": 0.33,
+      "on": true,
+      "pass": 4.206888370749727
+    },
+    {
+      "f": 1200,
+      "width": 120,
+      "shape": "up",
+      "wave": "saw",
+      "lvl": 0.28,
+      "on": false,
+      "pass": 0.8
+    },
+    {
+      "f": 288,
+      "width": 51.77708763999664,
+      "shape": "up",
+      "wave": "saw",
+      "lvl": 0.29,
+      "on": true,
+      "pass": 1.4562305898749055
+    }
+  ],
+  "bins": [
+    {
+      "carrier": 144,
+      "beat": 3.3978713763747797,
+      "wave": "sine",
+      "lvl": 0.35,
+      "on": true
+    },
+    {
+      "carrier": 160,
+      "beat": 2,
+      "wave": "sine",
+      "lvl": 0.32,
+      "on": false
+    },
+    {
+      "carrier": 200,
+      "beat": 3,
+      "wave": "sine",
+      "lvl": 0.3,
+      "on": false
+    },
+    {
+      "carrier": 256,
+      "beat": 4,
+      "wave": "sine",
+      "lvl": 0.3,
+      "on": false
+    },
+    {
+      "carrier": 233,
+      "beat": 5.501315561749642,
+      "wave": "sine",
+      "lvl": 0.28,
+      "on": true
+    },
+    {
+      "carrier": 400,
+      "beat": 8,
+      "wave": "sine",
+      "lvl": 0.26,
+      "on": false
+    }
+  ],
+  "singles": [
+    {
+      "f": 89,
+      "wave": "sine",
+      "lvl": 0.3,
+      "on": true
+    },
+    {
+      "f": 341.3,
+      "wave": "sine",
+      "lvl": 0.32,
+      "on": false
+    },
+    {
+      "f": 426.6,
+      "wave": "saw",
+      "lvl": 0.3,
+      "on": false
+    },
+    {
+      "f": 512,
+      "wave": "sine",
+      "lvl": 0.3,
+      "on": false
+    },
+    {
+      "f": 639,
+      "wave": "saw",
+      "lvl": 0.28,
+      "on": false
+    },
+    {
+      "f": 233,
+      "wave": "sine",
+      "lvl": 0.24,
+      "on": true
+    }
+  ],
+  "compound": true,
+  "masterVol": 0.22,
+  "view": "field",
+  "manifest": {
+    "title": "CLI resonance study",
+    "tags": "cli, engineering",
+    "notes": ""
+  }
+}
