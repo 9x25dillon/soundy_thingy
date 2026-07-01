@@ -81,9 +81,19 @@ Everything auto-wires into the UI.
 
 MIT — see [LICENSE](LICENSE) file.
 
+## Repository Contents
+
+This repo contains the full Resonarium project:
+
+- **synth.html** — The main generative ambient synthesizer (see above)
+- **resonarium-enhanced.html** — Previous full-featured version with multi-layer synthesis, sequencer, cymatics, etc.
+- **resonarium_cli_engineering.py** + **resonarium_cli_skeleton.py** — Python CLI tools for parameter editing and preset design
+- **resonarium_engineering_platform.html** + bundle — Earlier engineering-focused web instrument
+- Supporting files: state examples, documentation, etc.
+
 ## Contributing
 
-Pull requests are welcome! Especially new voices, scales, geometries, or visualizer modes.
+Pull requests are welcome! Especially new voices, scales, geometries, or visualizer modes for synth.html.
 
 ---
 
