@@ -1,0 +1,111 @@
+name: resonarium
+
+# The suite is the check. What CI adds is several interpreters, a clean checkout, and
+# — the point of the `no skips` step below — a guarantee that node is present, so the
+# cross-language parity tests actually run instead of quietly excusing themselves.
+
+on:
+  push:
+    branches: [main]
+    paths: ["resonarium/**", ".github/workflows/resonarium.yml"]
+  pull_request:
+    paths: ["resonarium/**", ".github/workflows/resonarium.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: resonarium-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.10 is the floor: the suite uses zip(..., strict=True).
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # Node is what makes the parity tests real. Without it they skip, and the most
+      # important claim in this project — that the Python and JavaScript halves agree
+      # bit for bit — goes unverified behind a green tick.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run the suite, and refuse to pass on a skip
+        working-directory: resonarium
+        run: |
+          python - <<'PY'
+          import sys, unittest
+
+          result = unittest.TextTestRunner(verbosity=2).run(
+              unittest.defaultTestLoader.discover("tests")
+          )
+          if result.skipped:
+              print("\nTests skipped in CI, which is never acceptable here:")
+              for case, reason in result.skipped:
+                  print(f"  {case}: {reason}")
+              print(
+                  "\nLocally a skip is fine — node is optional. In CI node is installed "
+                  "on purpose, so a skip means the parity tests did not run and the "
+                  "cross-language guarantee is unverified."
+              )
+              sys.exit(1)
+          print(f"\n{result.testsRun} tests, no skips.")
+          sys.exit(0 if result.wasSuccessful() else 1)
+          PY
+
+  audit:
+    name: offline audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # An independent pass over the shipped files, outside the suite's own scan. The
+      # suite checks this too; doing it here as well means a change that weakens the
+      # test cannot also switch off the thing the test was guarding.
+      - name: No shipped file may reference an off-host origin
+        run: |
+          python - <<'PY'
+          import pathlib, re, sys
+
+          root = pathlib.Path("resonarium")
+          allowed = ("http://json-schema.org", "https://claude.ai")
+          vendored = {"resonarium/vendor/three.min.js"}
+          bad = []
+          for path in sorted(root.rglob("*")):
+              if not path.is_file() or path.suffix.lower() not in (
+                      ".html", ".js", ".cjs", ".py", ".json"):
+                  continue
+              if path.as_posix() in vendored or "tests/" in path.as_posix():
+                  continue
+              for n, line in enumerate(path.read_text(encoding="utf-8",
+                                                      errors="replace").splitlines(), 1):
+                  for m in re.findall(r"https?://[^\s\"'<>)]+", line):
+                      if not m.startswith(allowed):
+                          bad.append(f"{path}:{n}: {m}")
+          if bad:
+              print("Off-host references in shipped files:")
+              print("\n".join("  " + b for b in bad))
+              sys.exit(1)
+          print("No off-host references in any shipped file.")
+          PY
+
+      - name: Vendored three.js is unmodified upstream r134
+        run: |
+          echo "74782bdbcf6518f7745ed77035968fcae95ed4ab5c9a0f90cf646a69c20785ec  resonarium/vendor/three.min.js" \
+            | sha256sum -c - || {
+              echo "vendor/three.min.js does not match the audited hash."
+              echo "actual: $(sha256sum resonarium/vendor/three.min.js)"
+              exit 1
+            }

@@ -4,10 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Resonarium • Cymatic Nodal 4D</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<!-- No webfonts. Chakra Petch and Space Mono were fetched from Google, which cost two
+     preconnects and a stylesheet request before a pixel was drawn and told Google the
+     reader's IP address on every launch. Every font-family in this file already
+     declared system-ui / monospace fallbacks, so dropping the links changes the
+     typeface and nothing else. -->
+<script src="vendor/three.min.js"></script>
 <style>
 :root{
   --void:#050713;--deep:#0b1026;--panel:#121936;--panel2:#0d132b;--line:#29335f;
