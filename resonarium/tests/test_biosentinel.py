@@ -370,13 +370,52 @@ class TestNoNetworkCalls(unittest.TestCase):
                     hits.append(f"{path.name}:{lineno}: {token}")
         return hits
 
+    # Vendored third-party code is exempt from the token scan and pinned by hash
+    # instead: it is not ours to rewrite, and a minified bundle mentions URLs in its
+    # licence header without ever fetching anything.
+    VENDORED = {"vendor/three.min.js"}
+    SCANNED_SUFFIXES = (".py", ".js", ".cjs", ".html", ".json")
+
+    def shipped(self):
+        """Every file this directory ships, discovered rather than recited.
+
+        The list used to be hard-coded, and a file reached the directory that the list
+        did not name — `resonarium_hologram_cymatic_nodal_4D.html`, which pulled three.js
+        from cdnjs and fonts from Google. The suite stayed green while a shipped
+        instrument announced the reader's IP to two companies on every launch. A test
+        that enumerates cannot be outrun by a new file the way a test that recites can.
+        """
+        out = []
+        for path in sorted(ROOT.rglob("*")):
+            if not path.is_file():
+                continue
+            rel = path.relative_to(ROOT).as_posix()
+            if rel.startswith(("tests/", ".git/", "__pycache__/")):
+                continue
+            if rel in self.VENDORED or path.suffix.lower() not in self.SCANNED_SUFFIXES:
+                continue
+            out.append(path)
+        return out
+
     def test_no_network_tokens(self):
+        scanned = self.shipped()
+        self.assertGreaterEqual(len(scanned), 5,
+                                "file discovery found suspiciously few files")
         hits = []
-        for name in ("natal_seed.py", "natal_seed.js",
-                     "resonarium_biosentinel_cli.py",
-                     "resonarium-enhanced.html", "parity_check.cjs"):
-            hits += self.scan(ROOT / name)
+        for path in scanned:
+            hits += self.scan(path)
         self.assertEqual(hits, [])
+
+    def test_vendored_code_is_pinned_by_hash(self):
+        """Exempting a file from the scan is only safe if it cannot change unnoticed."""
+        import hashlib
+        expected = {"vendor/three.min.js": "74782bdbcf6518f7745ed77035968fca"}
+        for rel in sorted(self.VENDORED):
+            path = ROOT / rel
+            self.assertTrue(path.exists(), f"{rel} is exempted from the scan but missing")
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            self.assertEqual(digest[:32], expected[rel],
+                             f"{rel} changed; re-audit it before updating this hash")
 
     def test_html_has_lockdown_csp(self):
         html = (ROOT / "resonarium-enhanced.html").read_text(encoding="utf-8")

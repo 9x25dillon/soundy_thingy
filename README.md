@@ -124,19 +124,20 @@ copy under `resonarium/` is the newer one.
 
 ## Offline behaviour
 
-Everything here opens from `file://` with the network off, with **one exception**:
+Every file here opens from `file://` with the network off, and makes **zero** off-host
+requests. That is checked on every push, twice: once by the test suite's own scan and
+once by an independent audit job, so weakening the test cannot also switch off the thing
+the test was guarding.
 
-| File | Off-host requests on load |
-|---|---|
-| `synth.html` | none |
-| `resonarium-enhanced.html` (both copies) | none |
-| `resonarium_engineering_platform.html` | none |
-| `resonarium/resonarium_hologram_cymatic_nodal_4D.html` | **cdnjs.cloudflare.com, fonts.googleapis.com, fonts.gstatic.com** |
+`resonarium_hologram_cymatic_nodal_4D.html` used to be the exception — it pulled three.js
+from cdnjs and two typefaces from Google, so it would not render offline and announced
+your IP address to Cloudflare and Google on every launch. three.js r134 is now vendored
+into `resonarium/vendor/` (MIT, byte-identical to upstream, pinned by SHA-256 and checked
+in CI), and the webfont links are gone: every `font-family` in that file already declared
+`system-ui` / `monospace` fallbacks, so the typeface changes and nothing else does.
 
-That last one will not render offline, and it announces your IP address to Cloudflare and
-Google every time you open it. Vendoring its three libraries and fonts would fix both;
-until then it is the one file in the repo that does not keep the offline promise, and it
-is listed here rather than left for someone to discover with a packet sniffer.
+Verified in a real browser rather than by grep — `THREE.REVISION === 134` resolving from
+`vendor/`, with no requests leaving the machine.
 
 ## Quick Start for Other Files
 
