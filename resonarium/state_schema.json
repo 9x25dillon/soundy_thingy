@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ResonariumBiosentinelState",
+  "description": "Shared state exchanged between resonarium-enhanced.html and resonarium_biosentinel_cli.py. Natal chart data is intentionally absent from this schema: exports are redacted by default and raw chart data must never be stored in logs, browser storage, or default exports.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "timestamp_utc": { "type": "string", "format": "date-time" },
+    "natal_seed_intention": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Sanitized intention phrase. Persisted only when the user opts in; empty string otherwise."
+    },
+    "sentinel": {
+      "type": "object",
+      "properties": {
+        "active": { "type": "boolean" },
+        "n": { "type": "integer", "minimum": 0, "maximum": 64 },
+        "k": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "perturb": { "type": "number", "minimum": 0.0, "maximum": 100.0 },
+        "spread": { "type": "number", "minimum": 0.0, "maximum": 10.0 }
+      },
+      "required": ["active", "n", "k", "perturb", "spread"],
+      "additionalProperties": false
+    },
+    "seed_hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$",
+      "description": "One-way 64-bit digest of chart+intention. Safe to share; natal data cannot be reconstructed from it."
+    },
+    "temporal_trace": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "event": { "type": "string" },
+          "timestamp_utc": { "type": "string", "format": "date-time" },
+          "params": { "type": "object" }
+        },
+        "required": ["event", "timestamp_utc", "params"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "timestamp_utc", "sentinel", "temporal_trace"],
+  "additionalProperties": false
+}
