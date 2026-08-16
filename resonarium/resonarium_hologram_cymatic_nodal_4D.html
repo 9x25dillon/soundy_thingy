@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Resonarium • Cymatic Nodal 4D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<style>
+:root{
+  --void:#050713;--deep:#0b1026;--panel:#121936;--panel2:#0d132b;--line:#29335f;
+  --sun:#f5b942;--water:#3fd6c4;--emit:#b06cf0;--rose:#ff6e9f;--mist:#9099bd;--text:#eaf0ff;
+  --good:#61ffc7;--warn:#ffc85e;--bad:#ff6e7a;
+  --bg:radial-gradient(120% 100% at 50% -18%,#172150 0%,#0a0f24 46%,#050713 100%);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--void);color:var(--text);font-family:'Chakra Petch',system-ui,sans-serif}
+body{background:var(--bg);}
+.wrap{height:100vh;display:flex;flex-direction:column;position:relative}
+header{height:82px;display:flex;justify-content:space-between;align-items:center;padding:16px 22px 8px;gap:16px;z-index:4;pointer-events:none}
+h1{font-size:26px;margin:0;font-weight:600;text-transform:uppercase;letter-spacing:.36em;background:linear-gradient(90deg,var(--sun),var(--water) 50%,var(--emit));-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 32px rgba(63,214,196,.12)}
+.sub{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mist);font-family:'Space Mono',monospace;margin-top:3px}
+.formula{text-align:right;color:var(--mist);font-size:10px;line-height:1.45;font-family:'Space Mono',monospace;opacity:.95}
+#three-container{position:absolute;inset:0;top:82px;bottom:56px;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+.ui{position:absolute;top:96px;right:16px;width:356px;max-height:calc(100vh - 170px);overflow:auto;background:rgba(18,25,54,.92);border:1px solid var(--line);border-radius:16px;padding:14px 16px;backdrop-filter:blur(14px);box-shadow:0 16px 60px rgba(0,0,0,.28);z-index:6;font-size:12px}
+.ui::-webkit-scrollbar,.modes::-webkit-scrollbar{width:7px}.ui::-webkit-scrollbar-thumb,.modes::-webkit-scrollbar-thumb{background:#2b376d;border-radius:8px}
+.section{margin-bottom:15px;padding-bottom:13px;border-bottom:1px solid rgba(41,51,95,.55)}.section:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
+h3{margin:0 0 10px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--water);font-weight:600}
+.btns{display:flex;gap:6px;flex-wrap:wrap}button{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.07em;border:1px solid var(--line);background:#101732;color:var(--mist);border-radius:8px;padding:7px 10px;cursor:pointer;transition:.12s}button:hover{border-color:var(--water);color:var(--water);box-shadow:0 0 14px rgba(63,214,196,.12)}button.active{border-color:var(--sun);color:var(--sun);background:rgba(245,185,66,.1)}button.danger:hover{border-color:var(--bad);color:var(--bad)}.preset-btn{flex:1 1 47%}.wide{width:100%}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0}.lab{flex:1;color:var(--mist);font-size:11px;letter-spacing:.06em}.val{width:54px;text-align:right;font-family:'Space Mono',monospace;color:var(--text);font-size:10px}input[type=range]{flex:1;height:3px;background:#222b55;border-radius:5px;accent-color:var(--water)}
+input[type=text],textarea{background:#0b1127;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:7px 9px;font-family:'Space Mono',monospace;font-size:11px;width:100%}textarea{resize:vertical;min-height:48px}.hint{font-size:9.5px;color:var(--mist);line-height:1.35;margin-top:6px;font-family:'Space Mono',monospace;opacity:.86}
+.modes{max-height:156px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#0b1127;padding:6px;font-family:'Space Mono',monospace;font-size:10px}.mode{display:flex;align-items:center;gap:6px;padding:4px;border-radius:6px}.mode:hover{background:rgba(63,214,196,.06)}.tog{width:17px;height:17px;border-radius:50%;border:1px solid var(--line);cursor:pointer;flex:none}.mode.on .tog{background:var(--water);border-color:var(--water);box-shadow:0 0 12px rgba(63,214,196,.45)}.info{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mode input{max-width:82px}.badge{font-family:'Space Mono',monospace;font-size:9px;border:1px solid var(--line);border-radius:999px;padding:2px 6px;color:var(--mist)}
+.info-panel{position:absolute;left:16px;bottom:74px;max-width:448px;z-index:5;background:rgba(5,7,19,.78);border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:var(--mist);font-size:10.8px;line-height:1.48;backdrop-filter:blur(9px)}.info-panel b{color:var(--water)}
+.transport{position:fixed;bottom:0;left:0;right:0;min-height:56px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:10px 18px;border-top:1px solid var(--line);background:linear-gradient(180deg,rgba(5,7,19,.72),rgba(5,7,19,.98));z-index:10}.transport button{padding:8px 13px}.stat{font-family:'Space Mono',monospace;font-size:10px;color:var(--mist);margin-left:8px}.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 8px;color:var(--mist);font-family:'Space Mono',monospace;font-size:10px}.dot{width:7px;height:7px;border-radius:50%;background:var(--bad);box-shadow:0 0 10px currentColor}.dot.on{background:var(--good)}
+@media (max-width:860px){header{height:auto;align-items:flex-start}.formula{display:none}.ui{left:12px;right:12px;top:88px;width:auto;max-height:42vh}.info-panel{display:none}#three-container{top:76px}.transport{justify-content:flex-start;overflow-x:auto;flex-wrap:nowrap}.stat{margin-left:0;white-space:nowrap}h1{font-size:20px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Resonarium</h1>
+      <div class="sub">cymatic nodal 4d • spherical harmonics • chladni disc</div>
+    </div>
+    <div class="formula">R(θ,φ,t)=r₀+Σ AᵢYₗᵢᵐᵢ(θ,φ)sin(2πfᵢt+φᵢ)<br><span style="opacity:.62">bedrock lock • biosentinel overlay • cymatic plate • nodal shell</span></div>
+  </header>
+  <div id="three-container"></div>
+
+  <aside class="ui">
+    <div class="section">
+      <h3>Resonance Scenes</h3>
+      <div class="btns">
+        <button class="preset-btn" data-preset="phi">Phi Bloom</button>
+        <button class="preset-btn" data-preset="solfeggio">Solfeggio Lattice</button>
+        <button class="preset-btn" data-preset="astral">Astral Crystal</button>
+        <button class="preset-btn" data-preset="void">Deep Void</button>
+        <button class="preset-btn" data-preset="crown">Crown Net</button>
+        <button class="preset-btn" data-preset="mirror">Mirror Garden</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Frequency Families</h3>
+      <div class="btns" id="family-toggles">
+        <button data-family="solfeggio">Solfeggio</button>
+        <button data-family="phi">φ Ratios</button>
+        <button data-family="constants">Constants</button>
+        <button data-family="natal">Natal Seed</button>
+        <button data-family="cli">CLI Import</button>
+      </div>
+      <div class="row"><button id="add-all" class="wide">Add Active Families</button></div>
+      <div class="hint">The family buttons add modes immediately. Exported CLI sweeps/bins/singles become the CLI Import family after import.</div>
+    </div>
+
+    <div class="section">
+      <h3>Global Field</h3>
+      <div class="row"><div class="lab">Deformation</div><input id="deform" type="range" min="0" max="0.75" step="0.01" value="0.24"><div id="deform-val" class="val">0.24</div></div>
+      <div class="row"><div class="lab">Time Scale</div><input id="timescale" type="range" min="0.05" max="4" step="0.05" value="0.8"><div id="timescale-val" class="val">0.80×</div></div>
+      <div class="row"><div class="lab">4D Rotation</div><input id="rotation4d" type="range" min="0" max="1" step="0.01" value="0.3"><div id="rotation4d-val" class="val">0.30</div></div>
+      <div class="row"><div class="lab">Node Threshold</div><input id="threshold" type="range" min="0.04" max="0.7" step="0.01" value="0.18"><div id="threshold-val" class="val">0.18</div></div>
+      <div class="row"><div class="lab">Persistence</div><input id="persistence" type="range" min="0.70" max="0.997" step="0.001" value="0.955"><div id="persistence-val" class="val">0.955</div></div>
+      <div class="row"><div class="lab">Structure Links</div><input id="links" type="range" min="0" max="220" step="1" value="96"><div id="links-val" class="val">96</div></div>
+    </div>
+
+    <div class="section">
+      <h3>Biosentinel Coupling</h3>
+      <div class="row"><div class="lab">n Entropy</div><input id="sent-n" type="range" min="1" max="50" step="1" value="12"><div id="sent-n-val" class="val">12</div></div>
+      <div class="row"><div class="lab">k Bedrock Lock</div><input id="sent-k" type="range" min="0" max="1" step="0.01" value="0.65"><div id="sent-k-val" class="val">0.65</div></div>
+      <div class="row"><div class="lab">Perturb</div><input id="sent-perturb" type="range" min="0" max="0.2" step="0.005" value="0.035"><div id="sent-perturb-val" class="val">0.035</div></div>
+      <button id="emerge" class="wide">EMERGE • seeded perturbation</button>
+    </div>
+
+    <div class="section">
+      <h3>Audio Bridge</h3>
+      <div class="btns"><button id="audio-toggle">Start Drone</button><button id="audio-sync">Sync Gains</button></div>
+      <div class="row"><div class="lab">Audio Level</div><input id="audio-level" type="range" min="0" max="0.25" step="0.005" value="0.05"><div id="audio-level-val" class="val">0.050</div></div>
+      <div class="hint">Native Web Audio only. Frequencies are folded into a comfortable drone range and gain breathes from total node energy.</div>
+    </div>
+
+    <div class="section">
+      <h3>Active Modes <span id="mode-count" class="badge">0</span></h3>
+      <div id="modes-list" class="modes"></div>
+      <div class="btns" style="margin-top:7px"><button id="clear-modes" class="danger">Clear Modes</button><button id="mute-modes">Mute All</button></div>
+    </div>
+
+    <div class="section">
+      <h3>Natal / Intention Anchor</h3>
+      <textarea id="natal-seed" placeholder="paste chart JSON, natal seed, or intention phrase"></textarea>
+      <div class="btns" style="margin-top:7px"><button id="anchor-natal">Anchor Seed</button><button id="copy-seed">Copy Seed</button></div>
+      <div class="hint" id="seed-readout">seed: default 12648430</div>
+    </div>
+  </aside>
+
+  <div class="info-panel">
+    <b>Cymatic Nodal 4D mode:</b> spherical harmonics deform the central sphere, a Chladni disc below shows nodal lines, and a transparent shell highlights zero-crossing surfaces as a 4D projection. Node memory trails follow gradients.<br>
+    <span style="opacity:.68">Space pause • E emerge • P panic • R reset • A audio • drag orbit • wheel zoom</span>
+  </div>
+
+  <div class="transport">
+    <button id="play-pause">⏸ PAUSE</button>
+    <button id="reset-time">RESET</button>
+    <button id="panic" class="danger">PANIC</button>
+    <button id="export">EXPORT STATE</button>
+    <button id="import-btn">IMPORT JSON</button>
+    <input type="file" id="import-file" accept=".json,application/json" style="display:none">
+    <span class="pill"><span id="audio-dot" class="dot"></span><span id="audio-state">audio off</span></span>
+    <span id="stats" class="stat">modes: 0 • nodes: 0 • links: 0 • fps: 60</span>
+  </div>
+</div>
+
+<script>
+'use strict';
+const TAU=Math.PI*2, PHI=1.618033988749895;
+
+// Lightweight UI/export guardrails for user-provided labels and imported data.
+const FREQ_SAFE={MIN_HZ:20,MAX_HZ:18000};
+function safetyScreen(text){return typeof text==='string'?text.replace(/[<>]/g,c=>c==='<'?'‹':'›'):text}
+function safeFoldHz(f){let hz=foldHz(f);if(isNaN(hz))return FREQ_SAFE.MIN_HZ;return Math.max(FREQ_SAFE.MIN_HZ,Math.min(FREQ_SAFE.MAX_HZ,hz))}
+function safeMasterGain(baseGain,energy){return Math.min(0.25,baseGain*(0.45+Math.min(1,energy*5)))}
+function validateImport(obj){if(!obj||typeof obj!=='object')throw new Error('Invalid JSON object');if(Array.isArray(obj.modes)){for(const m of obj.modes){if(typeof m.freq!=='number'||isNaN(m.freq)||m.freq<0)m.freq=144;if(m.freq>20000)m.freq=20000;if(m.freq<20)m.freq=20;m.amplitude=Math.min(0.75,Math.max(0,m.amplitude||0.1));}}return obj}
+function sanitizeExportState(state){return state}
+let lastPhotoWarn=0;
+function checkPhotosensitivity(delta,timescale,modes){const active=modes.filter(m=>m.on);if(!active.length)return;const maxVis=Math.max(...active.map(m=>m.visualFreq));const rate=timescale*maxVis;if(rate>=3&&rate<=30&&Date.now()-lastPhotoWarn>10000){lastPhotoWarn=Date.now();flash('⚠️ Visual modulation near photosensitive range','warn')}}
+let scene,camera,renderer,sphere,bedrockSphere,nodalShell,cymaticDisc,points,trailPoints,structureLines;
+let running=true,time=0,lastFrame=performance.now();
+let modes=[], nodeMemory=[], activeNodeCache=[], cliFrequencies=[];
+let natalSeed=0xC0FFEE, rng=mulberry32(natalSeed), fieldEnergy=0;
+let audio=null;
+const container=document.getElementById('three-container');
+const ui={
+  modesList:document.getElementById('modes-list'),modeCount:document.getElementById('mode-count'),stats:document.getElementById('stats'),
+  seedReadout:document.getElementById('seed-readout'),audioDot:document.getElementById('audio-dot'),audioState:document.getElementById('audio-state')
+};
+const baseFrequencies={
+  solfeggio:[174,285,396,417,528,639,741,852,963],
+  phi:[PHI,PHI*PHI,PHI*PHI*PHI,PHI*PHI*PHI*PHI,137.507764],
+  constants:[Math.PI,Math.E,Math.SQRT2,Math.LN2,Math.LOG10E],
+  natal:[],cli:[]
+};
+const scenes={
+  phi:{families:['phi'],deform:.24,persistence:.962,rotation4d:.32,timescale:.72,threshold:.15,links:112,n:10,k:.72,perturb:.025},
+  solfeggio:{families:['solfeggio'],deform:.17,persistence:.975,rotation4d:.18,timescale:1.10,threshold:.19,links:140,n:16,k:.58,perturb:.04},
+  astral:{families:['phi','constants','natal'],deform:.30,persistence:.986,rotation4d:.44,timescale:.82,threshold:.14,links:164,n:18,k:.78,perturb:.032},
+  void:{families:['solfeggio'],deform:.095,persistence:.938,rotation4d:.08,timescale:.38,threshold:.25,links:58,n:7,k:.88,perturb:.018},
+  crown:{families:['constants','phi'],deform:.20,persistence:.990,rotation4d:.22,timescale:.55,threshold:.12,links:210,n:24,k:.68,perturb:.028},
+  mirror:{families:['natal','phi'],deform:.26,persistence:.982,rotation4d:.38,timescale:.66,threshold:.13,links:180,n:14,k:.92,perturb:.016}
+};
+function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+function hashString64(s){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<s.length;i++){const ch=s.charCodeAt(i);h1=Math.imul(h1^ch,2654435761);h2=Math.imul(h2^ch,1597334677)}h1=Math.imul(h1^h1>>>16,2246822507)^Math.imul(h2^h2>>>13,3266489909);h2=Math.imul(h2^h2>>>16,2246822507)^Math.imul(h1^h1>>>13,3266489909);return ((h2>>>0)*4294967296+(h1>>>0))}
+function seededRand(){return rng()}
+function factorial(n){let r=1;for(let i=2;i<=n;i++)r*=i;return r}
+function assocLegendre(l,m,x){m=Math.abs(m);if(m>l)return 0;let pmm=1;if(m>0){const somx2=Math.sqrt(Math.max(0,(1-x)*(1+x)));let fact=1;for(let i=1;i<=m;i++){pmm*=-fact*somx2;fact+=2}}if(l===m)return pmm;let pmmp1=x*(2*m+1)*pmm;if(l===m+1)return pmmp1;let pll=0;for(let ll=m+2;ll<=l;ll++){pll=((2*ll-1)*x*pmmp1-(ll+m-1)*pmm)/(ll-m);pmm=pmmp1;pmmp1=pll}return pll}
+function ylm(l,m,theta,phi){const a=Math.abs(m);if(a>l)return 0;const norm=Math.sqrt(((2*l+1)/(4*Math.PI))*(factorial(l-a)/factorial(l+a)));const leg=assocLegendre(l,a,Math.cos(theta));const y=norm*leg;if(m===0)return y;if(m>0)return Math.sqrt(2)*y*Math.cos(a*phi);return Math.sqrt(2)*y*Math.sin(a*phi)*(a%2===0?1:-1)}
+function foldHz(f){let hz=Math.abs(f)||1;while(hz>420)hz/=2;while(hz<70)hz*=2;return hz}
+function createMode(f,family='custom',override={}){const seedBump=(natalSeed%997)/997;const l=override.l??(1+Math.floor(((f*7.13)+(seedBump*9))%9));let m=override.m??Math.floor(((f*PHI*3.7)+seedBump*11)%(l+1));if((override.m===undefined)&&seededRand()>.52)m=-m;const phase=override.phase??(((f*.37+seedBump*13+seededRand())%1)*TAU);const visualFreq=override.visualFreq??((f<12?f*.55:f/180)*.58);const amp=override.amplitude??Math.min(.62,.10+(f%9)/32+(family==='phi'?.075:0)+(family==='natal'?.06:0));return {id:cryptoSafeId(),freq:+f,l,m,amplitude:amp,bedrockAmp:amp,phase,visualFreq,family,on:true,audioGain:.0}}
+function cryptoSafeId(){return 'm'+Date.now().toString(36)+Math.floor(seededRand()*1e9).toString(36)}
+function deriveNatalFrequencies(){const out=[];let s=natalSeed>>>0;for(let i=0;i<6;i++){s=(Math.imul(s^0x9e3779b9,1664525)+1013904223)>>>0;out.push(144+(s%760)+i*PHI)}return out}
+function modesFromFamilies(fams){const out=[];fams.forEach(f=>{if(f==='natal'){deriveNatalFrequencies().forEach(x=>out.push(createMode(x,'natal')))}else if(f==='cli'){cliFrequencies.forEach(x=>out.push(createMode(x,'cli')))}else(baseFrequencies[f]||[]).forEach(x=>out.push(createMode(x,f))) });return out}
+function initThree(){renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(container.clientWidth,container.clientHeight);container.appendChild(renderer.domElement);scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(52,container.clientWidth/container.clientHeight,.1,100);camera.position.set(0,0,4.1);
+scene.add(new THREE.HemisphereLight(0x3fd6c4,0x060816,.68));const d=new THREE.DirectionalLight(0xf5b942,.38);d.position.set(4,7,5);scene.add(d);
+const g=new THREE.SphereGeometry(1.62,180,90);g.userData.base=g.attributes.position.array.slice();g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(g.attributes.position.count*3),3));const mat=new THREE.MeshPhongMaterial({color:0x172142,shininess:26,specular:0x354a7a,vertexColors:true,flatShading:false,transparent:true,opacity:.96});sphere=new THREE.Mesh(g,mat);scene.add(sphere);
+const bg=new THREE.SphereGeometry(1.615,48,24);const bm=new THREE.MeshBasicMaterial({color:0x14204a,transparent:true,opacity:.16,blending:THREE.AdditiveBlending});bedrockSphere=new THREE.Mesh(bg,bm);scene.add(bedrockSphere);
+const nGeo=new THREE.SphereGeometry(1.625,120,60);const nMat=new THREE.MeshBasicMaterial({color:0x44ddff,wireframe:true,transparent:true,opacity:.22});nodalShell=new THREE.Mesh(nGeo,nMat);scene.add(nodalShell);
+const discGeo=new THREE.CircleGeometry(2.0,160);discGeo.rotateX(-Math.PI/2);discGeo.translate(0,-1.8,0);const discMat=new THREE.MeshPhongMaterial({color:0x1a2b5c,shininess:60,specular:0x4488aa,vertexColors:true,side:THREE.DoubleSide});cymaticDisc=new THREE.Mesh(discGeo,discMat);const discColors=new Float32Array(discGeo.attributes.position.count*3);cymaticDisc.geometry.setAttribute('color',new THREE.BufferAttribute(discColors,3));scene.add(cymaticDisc);
+points=makePoints(.04,.96);trailPoints=makePoints(.018,.55);structureLines=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({transparent:true,opacity:.38,blending:THREE.AdditiveBlending,vertexColors:true,depthWrite:false}));scene.add(structureLines);
+let drag=false,px=0,py=0,ct=.8,cp=1.1,zoom=4.1;function cam(){camera.position.x=zoom*Math.sin(cp)*Math.cos(ct);camera.position.y=zoom*Math.sin(cp)*Math.sin(ct)*.62+.22;camera.position.z=zoom*Math.cos(cp);camera.lookAt(0,0,0)}container.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY});window.addEventListener('pointerup',()=>drag=false);container.addEventListener('pointermove',e=>{if(!drag)return;ct+=(e.clientX-px)*.0036;cp=Math.max(.24,Math.min(2.75,cp-(e.clientY-py)*.0036));px=e.clientX;py=e.clientY;cam()});container.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(2.5,Math.min(7.2,zoom+e.deltaY*.002));cam()},{passive:false});cam();window.addEventListener('resize',()=>{camera.aspect=container.clientWidth/container.clientHeight;camera.updateProjectionMatrix();renderer.setSize(container.clientWidth,container.clientHeight)});}
+function makePoints(size,opacity){const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(0),3));geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(0),3));const mat=new THREE.PointsMaterial({size,transparent:true,opacity,blending:THREE.AdditiveBlending,depthWrite:false,vertexColors:true});const p=new THREE.Points(geo,mat);scene.add(p);return p}
+function control(id){return document.getElementById(id)}
+function readGlobals(){return {deform:+control('deform').value,timescale:+control('timescale').value,rotation4d:+control('rotation4d').value,threshold:+control('threshold').value,persistence:+control('persistence').value,links:+control('links').value,n:+control('sent-n').value,k:+control('sent-k').value,perturb:+control('sent-perturb').value,audioLevel:+control('audio-level').value}}
+function apply4DRotation(theta,phi,t,g){const rot=g.rotation4d*2.0;return {theta:theta+Math.sin(phi*.7+t*.3)*rot*.3,phi:phi+Math.cos(theta*.5+t*.4)*rot*.3}}
+function updateSphere(delta){const g=readGlobals(),pa=sphere.geometry.attributes.position,ca=sphere.geometry.attributes.color,base=sphere.geometry.userData.base,active=modes.filter(m=>m.on),nodes=[];let energy=0,maxAbs=.0001;for(let i=0;i<base.length;i+=3){const bx=base[i],by=base[i+1],bz=base[i+2];const len=Math.sqrt(bx*bx+by*by+bz*bz)||1,ux=bx/len,uy=by/len,uz=bz/len;let theta=Math.acos(Math.max(-1,Math.min(1,uy))),phi=Math.atan2(uz,ux);const rot=apply4DRotation(theta,phi,time,g);theta=rot.theta;phi=rot.phi;let intensity=0;for(const m of active){const lock=g.k;const wave=Math.sin((time*m.visualFreq*g.timescale+m.phase)*TAU);const harmonic=ylm(m.l,m.m,theta,phi);const amp=(m.amplitude*(1-lock*.18)+m.bedrockAmp*(lock*.18));intensity+=amp*harmonic*wave}const abs=Math.abs(intensity);energy+=abs;maxAbs=Math.max(maxAbs,abs);const nr=1.62+intensity*g.deform;pa.array[i]=ux*nr;pa.array[i+1]=uy*nr;pa.array[i+2]=uz*nr;const bright=Math.min(1,abs/.62),warm=intensity>0?1:0;ca.array[i]=Math.min(1,.13+bright*(warm?.95:.44));ca.array[i+1]=Math.min(1,.18+bright*(warm?.83:.63));ca.array[i+2]=Math.min(1,.30+bright*(warm?.55:1.05));if(abs>g.threshold){const p=new THREE.Vector3(ux*nr,uy*nr,uz*nr);nodes.push({p,abs,intensity});if(seededRand()<.11+Math.min(.12,g.n/300)){nodeMemory.push({p:p.clone(),life:1,energy:abs,hot:intensity>0})}}}pa.needsUpdate=true;ca.needsUpdate=true;fieldEnergy=energy/(base.length/3);activeNodeCache=nodes.sort((a,b)=>b.abs-a.abs).slice(0,260);updatePointCloud(points,activeNodeCache.map(n=>n.p),activeNodeCache.map(n=>n.intensity>0?[1,.92,.66]:[.55,.88,1]));updateMemory(g);updateStructure(g);if(nodalShell){nodalShell.material.opacity=.1+Math.min(.3,fieldEnergy*1.5);nodalShell.rotation.y+=g.rotation4d*.005}if(cymaticDisc)updateCymaticDisc(g,active);try{ui.stats.textContent=safetyScreen(`modes: ${active.length} • nodes: ${activeNodeCache.length} • links: ${Math.min(g.links,Math.floor(activeNodeCache.length*1.4))} • fps: ${Math.round(1000/(delta||16))}`)}catch(e){ui.stats.textContent='stats error'}updateAudio(g);setTimeout(()=>checkPhotosensitivity(delta,g.timescale,modes),0)}
+function updateCymaticDisc(g,activeModes){const geo=cymaticDisc.geometry,pos=geo.attributes.position,col=geo.attributes.color;if(!col)return;const arr=col.array;for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i),r=Math.sqrt(x*x+z*z);if(r<.02){arr[i*3]=.12;arr[i*3+1]=.16;arr[i*3+2]=.28;continue}let theta=Math.PI/2+Math.atan2(r,1.0)*.8,phi=Math.atan2(z,x);const rot=apply4DRotation(theta,phi,time,g);theta=rot.theta;phi=rot.phi;let intensity=0;for(const m of activeModes){const wave=Math.sin((time*m.visualFreq*g.timescale+m.phase)*TAU);intensity+=m.amplitude*ylm(m.l,m.m,theta,phi)*wave}const bright=Math.min(1,Math.abs(intensity)*1.8);arr[i*3]=.15+bright*.8;arr[i*3+1]=.2+bright*.6;arr[i*3+2]=.35+bright*.65}col.needsUpdate=true}
+function updatePointCloud(obj,positions,colors){const pa=[],ca=[];for(let i=0;i<positions.length;i++){const p=positions[i],c=colors[i]||[1,1,1];pa.push(p.x,p.y,p.z);ca.push(c[0],c[1],c[2])}obj.geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(pa),3));obj.geometry.setAttribute('color',new THREE.BufferAttribute(new Float32Array(ca),3));obj.geometry.setDrawRange(0,positions.length)}
+function updateMemory(g){nodeMemory=nodeMemory.filter(n=>{n.life*=g.persistence;return n.life>.035});if(nodeMemory.length>900)nodeMemory.splice(0,nodeMemory.length-900);updatePointCloud(trailPoints,nodeMemory.map(n=>n.p),nodeMemory.map(n=>n.hot?[n.life*.95,n.life*.78,n.life*.42]:[n.life*.38,n.life*.72,n.life]))}
+function updateStructure(g){const src=activeNodeCache.slice(0,Math.min(90,activeNodeCache.length));const pa=[],ca=[];let count=0;for(let i=0;i<src.length&&count<g.links;i++){for(let j=i+1;j<src.length&&count<g.links;j++){const d=src[i].p.distanceTo(src[j].p);if(d>.18&&d<.54){const life=Math.max(.08,1-d/.54);pa.push(src[i].p.x,src[i].p.y,src[i].p.z,src[j].p.x,src[j].p.y,src[j].p.z);ca.push(.25*life,.9*life,1*life,.92*life,.65*life,.35*life);count++}}}structureLines.geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(pa),3));structureLines.geometry.setAttribute('color',new THREE.BufferAttribute(new Float32Array(ca),3));structureLines.geometry.setDrawRange(0,count*2)}
+function animate(){requestAnimationFrame(animate);if(!renderer)return;const now=performance.now(),delta=now-lastFrame;lastFrame=now;if(running){const g=readGlobals();time+=delta/1000*g.timescale*.60;sphere.rotation.y+=g.rotation4d*.008;bedrockSphere.rotation.y-=g.rotation4d*.002;structureLines.rotation.y=sphere.rotation.y;points.rotation.y=sphere.rotation.y;trailPoints.rotation.y=sphere.rotation.y;if(cymaticDisc)cymaticDisc.rotation.y+=.0002;updateSphere(delta)}renderer.render(scene,camera)}
+function addModes(ms){for(const nm of ms){const ex=modes.some(m=>Math.abs(m.freq-nm.freq)<.01&&m.family===nm.family&&m.l===nm.l&&m.m===nm.m);if(!ex)modes.push(nm)}renderModes()}
+function renderModes(){ui.modesList.innerHTML='';ui.modeCount.textContent=modes.length;for(const m of modes){const row=document.createElement('div');row.className='mode '+(m.on?'on':'');row.innerHTML=`<div class="tog"></div><div class="info" title="${m.family} f=${m.freq} l=${m.l} m=${m.m}">${m.family} ${m.freq<10?m.freq.toFixed(3):m.freq.toFixed(1)} <span style="opacity:.5">l${m.l} m${m.m}</span></div><input type="range" min="0" max="0.75" step="0.01" value="${m.amplitude}"><div class="val" style="width:34px">${m.amplitude.toFixed(2)}</div>`;row.querySelector('.tog').onclick=()=>{m.on=!m.on;row.classList.toggle('on',m.on);rebuildAudioVoices()};const sl=row.querySelector('input');sl.oninput=()=>{m.amplitude=+sl.value;row.querySelector('.val').textContent=m.amplitude.toFixed(2)};ui.modesList.appendChild(row)}rebuildAudioVoices()}
+function setSlider(id,v){const el=control(id);if(!el)return;el.value=v;labelSlider(id)}
+function labelSlider(id){const el=control(id),val=control(id+'-val');if(!val)return;const v=+el.value;if(id==='timescale')val.textContent=v.toFixed(2)+'×';else if(id==='rotation4d')val.textContent=v.toFixed(2);else if(id==='persistence'||id==='sent-perturb'||id==='audio-level')val.textContent=v.toFixed(3);else val.textContent=(Number.isInteger(v)?v:v.toFixed(2))}
+function loadPreset(name){const s=scenes[name];if(!s)return;modes=[];rng=mulberry32(natalSeed);addModes(modesFromFamilies(s.families));setSlider('deform',s.deform);setSlider('persistence',s.persistence);setSlider('rotation4d',s.rotation4d);setSlider('timescale',s.timescale);setSlider('threshold',s.threshold);setSlider('links',s.links);setSlider('sent-n',s.n);setSlider('sent-k',s.k);setSlider('sent-perturb',s.perturb);nodeMemory=[];flash(`${name.toUpperCase()} FIELD LOADED`)}
+function flash(text,type='info'){const el=document.createElement('div');el.textContent=safetyScreen(text);el.style.cssText='position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;color:var(--water);font-family:Space Mono,monospace;font-size:11px;letter-spacing:.18em;background:rgba(5,7,19,.6);border:1px solid var(--line);padding:10px 14px;border-radius:999px;pointer-events:none;transition:opacity .8s';if(type==='warn')el.style.color='var(--warn)';document.body.appendChild(el);setTimeout(()=>el.style.opacity='0',500);setTimeout(()=>el.remove(),1400)}
+function emerge(){const g=readGlobals();const density=Math.min(1,g.n/50);for(const m of modes){if(!m.on||seededRand()>density)continue;const drift=(seededRand()-.5)*g.perturb*TAU;const ampDrift=1+(seededRand()-.5)*g.perturb*4*(1-g.k*.65);m.phase+=drift;m.amplitude=Math.max(.015,Math.min(.72,(m.amplitude*ampDrift)*(1-g.k*.08)+m.bedrockAmp*(g.k*.08)))}nodeMemory=nodeMemory.slice(-Math.floor(300+g.n*8));renderModes();flash('SEEDED EMERGENCE NUDGE')}
+function anchorSeed(){const txt=control('natal-seed').value.trim();if(!txt)return;natalSeed=Math.floor(hashString64(txt)%Number.MAX_SAFE_INTEGER);rng=mulberry32(natalSeed>>>0);ui.seedReadout.textContent='seed: '+natalSeed+' • source length '+txt.length;modes=modes.filter(m=>m.family!=='natal');addModes(modesFromFamilies(['natal']));flash('NATAL FIELD ANCHORED')}
+function extractCLIState(state){const out=[];if(Array.isArray(state.sweeps))state.sweeps.forEach(s=>{if(s.on!==false&&s.f)out.push(+s.f)});if(Array.isArray(state.bins))state.bins.forEach(b=>{if(b.on!==false){if(b.carrier)out.push(+b.carrier);if(b.beat)out.push(safeFoldHz(+b.beat*32))}});if(Array.isArray(state.singles))state.singles.forEach(s=>{if(s.on!==false&&s.f)out.push(+s.f)});if(Array.isArray(state.modes))state.modes.forEach(m=>{if(m.freq)out.push(+m.freq)});return [...new Set(out.map(x=>+x.toFixed(3)))]}
+function exportState(){const g=readGlobals();const state={schema:'ResonariumHologramState',version:'2.0.0',created:new Date().toISOString(),natalSeed,globals:g,biosentinel:{n:g.n,k:g.k,perturb:g.perturb,spread:.15},modes:modes.map(({id,...rest})=>rest),cliFrequencies,summary:{fieldEnergy,nodeMemory:nodeMemory.length,activeNodes:activeNodeCache.length},compat:{resonarium_biosentinel_cli:true,imports:['sweeps','bins','singles','modes']}};download('resonarium_hologram_state_v2.json',JSON.stringify(sanitizeExportState(state),null,2),'application/json')}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function importState(file){const rd=new FileReader();rd.onload=e=>{try{const st=validateImport(JSON.parse(e.target.result));if(st.natalSeed){natalSeed=Number(st.natalSeed);rng=mulberry32(natalSeed>>>0);ui.seedReadout.textContent='seed: '+natalSeed+' • imported'}if(st.globals)Object.entries(st.globals).forEach(([k,v])=>setSlider(k,v));if(st.biosentinel){if(st.biosentinel.n!==undefined)setSlider('sent-n',st.biosentinel.n);if(st.biosentinel.k!==undefined)setSlider('sent-k',st.biosentinel.k);if(st.biosentinel.perturb!==undefined)setSlider('sent-perturb',st.biosentinel.perturb)}cliFrequencies=extractCLIState(st);baseFrequencies.cli=cliFrequencies;if(Array.isArray(st.modes)&&st.schema==='ResonariumHologramState'){modes=st.modes.map(m=>({...createMode(m.freq||144,m.family||'import'),...m,id:cryptoSafeId(),on:m.on!==false}))}else{addModes(modesFromFamilies(['cli']))}nodeMemory=[];renderModes();flash(`IMPORTED ${cliFrequencies.length} CLI FREQUENCIES`)}catch(err){alert('Invalid JSON state: '+err.message)}};rd.readAsText(file)}
+function startAudio(){if(audio)return;const ctx=new (window.AudioContext||window.webkitAudioContext)();const master=ctx.createGain();master.gain.value=0;master.connect(ctx.destination);audio={ctx,master,voices:new Map(),sync:true};ui.audioDot.classList.add('on');ui.audioState.textContent='audio on';rebuildAudioVoices();flash('AUDIO DRONE STARTED')}
+function stopAudio(){if(!audio)return;for(const v of audio.voices.values()){try{v.osc.stop()}catch(e){}}audio.master.disconnect();audio=null;ui.audioDot.classList.remove('on');ui.audioState.textContent='audio off'}
+function rebuildAudioVoices(){if(!audio)return;for(const [id,v] of audio.voices.entries()){if(!modes.find(m=>m.id===id&&m.on)){try{v.osc.stop()}catch(e){};audio.voices.delete(id)}}for(const m of modes.filter(m=>m.on).slice(0,18)){if(audio.voices.has(m.id))continue;const osc=audio.ctx.createOscillator(),gain=audio.ctx.createGain(),pan=audio.ctx.createStereoPanner();osc.type=(m.family==='solfeggio'||m.family==='cli')?'sine':'triangle';osc.frequency.value=safeFoldHz(m.freq);gain.gain.value=0;osc.connect(gain);gain.connect(pan);pan.connect(audio.master);pan.pan.value=Math.sin(m.phase);osc.start();audio.voices.set(m.id,{osc,gain,pan,mode:m})}}
+function updateAudio(g){if(!audio)return;const now=audio.ctx.currentTime;const targetMaster=safeMasterGain(g.audioLevel,fieldEnergy);audio.master.gain.setTargetAtTime(targetMaster,now,.08);for(const v of audio.voices.values()){const m=v.mode;const gain=(m.on?m.amplitude:0)*.045*(audio.sync?(.55+Math.min(1,fieldEnergy*4)):.75);v.gain.gain.setTargetAtTime(gain,now,.12);v.osc.frequency.setTargetAtTime(safeFoldHz(m.freq)*(1+Math.sin(time*m.visualFreq)*.002),now,.10)}}
+function setupUI(){document.querySelectorAll('.preset-btn').forEach(b=>b.onclick=()=>loadPreset(b.dataset.preset));document.querySelectorAll('#family-toggles button').forEach(b=>b.onclick=()=>{b.classList.toggle('active');addModes(modesFromFamilies([b.dataset.family]))});control('add-all').onclick=()=>{let fams=[...document.querySelectorAll('#family-toggles button.active')].map(b=>b.dataset.family);if(!fams.length)fams=['phi'];addModes(modesFromFamilies(fams))};['deform','timescale','rotation4d','threshold','persistence','links','sent-n','sent-k','sent-perturb','audio-level'].forEach(id=>{control(id).oninput=()=>labelSlider(id);labelSlider(id)});control('emerge').onclick=emerge;control('anchor-natal').onclick=anchorSeed;control('copy-seed').onclick=()=>navigator.clipboard?.writeText(String(natalSeed));control('clear-modes').onclick=()=>{modes=[];nodeMemory=[];renderModes()};control('mute-modes').onclick=()=>{modes.forEach(m=>m.on=false);renderModes()};control('play-pause').onclick=()=>{running=!running;control('play-pause').textContent=running?'⏸ PAUSE':'▶ PLAY'};control('reset-time').onclick=()=>{time=0;nodeMemory=[];flash('FIELD MEMORY CLEARED')};control('panic').onclick=()=>{modes.forEach(m=>m.on=false);nodeMemory=[];renderModes();flash('PANIC CLEAR')};control('export').onclick=exportState;control('import-btn').onclick=()=>control('import-file').click();control('import-file').onchange=e=>{if(e.target.files[0])importState(e.target.files[0]);e.target.value=''};control('audio-toggle').onclick=()=>{if(audio){stopAudio();control('audio-toggle').textContent='Start Drone'}else{startAudio();control('audio-toggle').textContent='Stop Drone'}};control('audio-sync').onclick=()=>{if(audio){audio.sync=!audio.sync;control('audio-sync').classList.toggle('active',audio.sync)}};document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA'].includes(e.target.tagName))return;const k=e.key.toLowerCase();if(k===' '){e.preventDefault();control('play-pause').click()}if(k==='e')emerge();if(k==='p')control('panic').click();if(k==='r')control('reset-time').click();if(k==='a')control('audio-toggle').click()})}
+function boot(){initThree();setupUI();loadPreset('phi');addModes(modesFromFamilies(['solfeggio']).slice(0,3));setTimeout(()=>flash('CYMATIC NODAL 4D • DRAG ORBIT • E EMERGE'),900);animate()}
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Hard no-network guarantee: no connect/img/font/frame sources allowed.
+     Only same-directory scripts (natal_seed.js) and inline code run. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Resonarium — Enhanced (Biosentinel)</title>
+<style>
+  :root {
+    --bg: #0b0b16; --panel: #14142a; --edge: #2a2a4a;
+    --ink: #d8d8ef; --dim: #8b8bb0; --accent: #7ec8e3; --gold: #d7b97a;
+    --ok: #7fd6a4; --warn: #e3b27e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--edge); }
+  header h1 { margin: 0; font-size: 18px; color: var(--accent); font-weight: 600; }
+  header p { margin: 2px 0 0; color: var(--dim); font-size: 12px; }
+  main {
+    display: grid; grid-template-columns: 340px 1fr; gap: 14px;
+    padding: 14px 20px; max-width: 1200px; margin: 0 auto;
+  }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;
+  }
+  .panel h2 { margin: 0 0 8px; font-size: 13px; color: var(--accent);
+              text-transform: uppercase; letter-spacing: .08em; }
+  label { display: block; margin: 8px 0 2px; color: var(--dim); font-size: 12px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=text], textarea {
+    width: 100%; background: #0d0d1c; color: var(--ink);
+    border: 1px solid var(--edge); border-radius: 4px; padding: 6px 8px;
+    font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace;
+  }
+  textarea { resize: vertical; }
+  button {
+    background: #1d1d3a; color: var(--ink); border: 1px solid var(--edge);
+    border-radius: 5px; padding: 6px 14px; cursor: pointer; font-size: 13px;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: #1a3346; border-color: var(--accent); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .value { color: var(--gold); font-variant-numeric: tabular-nums; }
+  .status { font-size: 12px; color: var(--dim); margin-top: 6px; min-height: 16px; }
+  .status.ok { color: var(--ok); }
+  .status.warn { color: var(--warn); }
+  #viz { width: 100%; height: 380px; background: #07070f;
+         border: 1px solid var(--edge); border-radius: 8px; display: block; }
+  #trace-list {
+    max-height: 220px; overflow-y: auto; margin: 6px 0 0; padding: 0;
+    list-style: none; font: 11px/1.6 ui-monospace, Menlo, Consolas, monospace;
+  }
+  #trace-list li { border-bottom: 1px solid #1c1c34; padding: 3px 0;
+                   color: var(--dim); word-break: break-all; }
+  #trace-list li b { color: var(--ink); font-weight: 600; }
+  .toggle-row { display: flex; align-items: center; gap: 10px; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px;
+           font-size: 11px; border: 1px solid var(--edge); color: var(--dim); }
+  .badge.on { border-color: var(--ok); color: var(--ok); }
+  #gate {
+    position: fixed; inset: 0; background: rgba(5,5,12,.94); z-index: 10;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  #gate .panel { max-width: 560px; }
+  #gate h2 { color: var(--warn); }
+  small.fine { color: var(--dim); display: block; margin-top: 8px; font-size: 11px; }
+  details summary { cursor: pointer; color: var(--dim); font-size: 12px; }
+  fieldset { border: none; padding: 0; margin: 0; }
+  fieldset:disabled { opacity: .45; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="panel" role="alertdialog" aria-labelledby="gate-title">
+    <h2 id="gate-title">Before you begin</h2>
+    <p><strong>Photosensitivity notice:</strong> this page renders slowly
+    animated visuals. All visual modulation is capped at 2.5&nbsp;Hz, below
+    the 3–30&nbsp;Hz range associated with photosensitive risk — but if you
+    are sensitive to flashing or pulsing imagery, or experience discomfort,
+    close the page.</p>
+    <p><strong>Audio notice:</strong> tones start at a low level. Set your
+    system volume low before starting, especially with headphones.</p>
+    <p><strong>What this is:</strong> an aesthetic, generative audiovisual
+    instrument seeded from chart geometry. It is not a medical device and
+    makes no diagnostic, therapeutic, or health claims of any kind.</p>
+    <p><strong>Privacy:</strong> everything runs locally in this page. No
+    network requests are made. Chart data stays in memory only and is never
+    written to browser storage, logs, or exports unless you explicitly opt in.</p>
+    <div class="row">
+      <button class="primary" id="gate-accept">I understand — enter</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <h1>Resonarium — Enhanced <span class="badge" id="audio-badge">audio off</span>
+      <span class="badge" id="sentinel-badge">sentinel off</span></h1>
+  <p>Natal bedrock · Biosentinel overlay · local-only, zero network</p>
+</header>
+
+<main>
+<section>
+
+  <div class="panel">
+    <h2>Engine</h2>
+    <div class="row">
+      <button class="primary" id="btn-audio">Start audio</button>
+      <label style="flex:1; margin:0;">master volume
+        <input type="range" id="master-vol" min="0" max="100" value="35">
+      </label>
+    </div>
+    <div class="status" id="engine-status">Audio requires a click to start (browser policy).</div>
+  </div>
+
+  <div class="panel">
+    <h2>Natal seed</h2>
+    <label for="chart-json">chart JSON (kept in memory only — never stored or exported by default)</label>
+    <textarea id="chart-json" rows="5" spellcheck="false"
+      placeholder='{"sun": 142.73, "moon": 78.41, "asc": 215.92, "mc": 312.44, "aspects_sum": 1247.8}'></textarea>
+    <label for="intention">intention phrase (optional, ≤256 chars, control characters stripped)</label>
+    <input type="text" id="intention" maxlength="256" autocomplete="off">
+    <div class="row">
+      <button class="primary" id="btn-anchor">Anchor natal seed</button>
+      <button id="btn-demo">Use demo chart</button>
+    </div>
+    <div class="status" id="seed-status">No seed anchored.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Biosentinel overlay</h2>
+    <div class="toggle-row">
+      <input type="checkbox" id="sentinel-active" disabled>
+      <label for="sentinel-active" style="margin:0;">Sentinel Mode</label>
+      <span class="status" id="sentinel-hint" style="margin:0;">anchor a seed to enable</span>
+    </div>
+    <fieldset id="sentinel-controls" disabled>
+      <label>n — ghost voices / rings: <span class="value" id="n-value">8</span>
+        <input type="range" id="s-n" min="0" max="64" step="1" value="8"></label>
+      <label>k — coupling toward natal baseline: <span class="value" id="k-value">0.70</span>
+        <input type="range" id="s-k" min="0" max="100" step="1" value="70"></label>
+      <label>perturb — max deviation (Hz): <span class="value" id="perturb-value">5.0</span>
+        <input type="range" id="s-perturb" min="0" max="100" step="0.5" value="5"></label>
+      <label>spread — geometric dispersion: <span class="value" id="spread-value">1.0</span>
+        <input type="range" id="s-spread" min="0" max="10" step="0.1" value="1"></label>
+    </fieldset>
+    <div class="status" id="deviation-status"></div>
+  </div>
+
+</section>
+<section>
+
+  <canvas id="viz" width="820" height="380" aria-label="Resonance field visualization"></canvas>
+
+  <div class="panel" style="margin-top:14px;">
+    <h2>Temporal trace</h2>
+    <div class="row" style="margin-top:0;">
+      <button id="btn-export">Export state</button>
+      <button id="btn-import">Import state</button>
+      <input type="file" id="import-file" accept="application/json" style="display:none;">
+      <button id="btn-clear-trace">Clear trace</button>
+    </div>
+    <div class="row">
+      <input type="checkbox" id="opt-include-chart">
+      <label for="opt-include-chart" style="margin:0;">include natal chart in export
+        <small class="fine" style="margin:0;">off by default — chart data is personal; exports are redacted unless you opt in</small>
+      </label>
+    </div>
+    <ul id="trace-list"></ul>
+  </div>
+
+  <small class="fine">Resonarium is a creative instrument for aesthetic
+  exploration. It makes no medical, diagnostic, or therapeutic claims.
+  All processing is local; this page never touches the network.</small>
+
+</section>
+</main>
+
+<script src="natal_seed.js"></script>
+<script>
+"use strict";
+/* Resonarium Enhanced — Biosentinel integration.
+ *
+ * Invariants:
+ *  - `bedrock` (natal baseline frequencies) is frozen at anchor time and
+ *    never written to by any sentinel code path. The overlay only creates
+ *    additional ghost oscillators around it.
+ *  - All Biosentinel randomness flows through one mulberry32 PRNG seeded
+ *    from the 64-bit natal seed; the PRNG is re-seeded on each sentinel
+ *    activation so a session is a deterministic replay.
+ *  - Raw chart JSON and raw intention text live only in page memory:
+ *    never in localStorage, the temporal trace, console, or exports
+ *    (unless the user ticks the explicit opt-in for exports).
+ */
+(function () {
+  if (typeof NatalSeed === "undefined") {
+    document.getElementById("engine-status").textContent =
+      "natal_seed.js failed to load — keep it next to this HTML file.";
+    return;
+  }
+  const NS = NatalSeed;
+  const STORAGE_KEY = "resonarium_biosentinel_state";
+  const TRACE_MAX = 500;
+  const ENTROPY_INTERVAL_MS = 4000;   // ghost retarget cadence
+  const GHOST_GAIN_TOTAL = 0.12;      // total energy budget for the overlay
+
+  // ------------------------------------------------------------- state
+  let sentinel = NS.clampSentinelParams({});
+  let seed = null;            // BigInt | null (one-way digest, loggable)
+  let prng = null;            // mulberry32 instance
+  let chart = null;           // in-memory only; never persisted by default
+  let bedrock = Object.freeze([]);   // natal baseline — immutable
+  let binaural = null;
+  let temporalTrace = [];
+  let intentionForExport = "";  // sanitized; persisted only on export opt-in
+
+  // audio graph
+  let ctx = null, master = null, compressor = null;
+  let bedrockNodes = [], binauralNodes = [], ghostNodes = [];
+  let entropyTimer = null;
+  let lastDeviation = { mean: 0, max: 0 };
+
+  const $ = (id) => document.getElementById(id);
+
+  // ------------------------------------------------- safe text handling
+  // All dynamic text goes through textContent (no HTML injection), and
+  // status/error strings are fixed templates that never echo user data.
+  function setStatus(el, text, cls) {
+    el.textContent = text;
+    el.className = "status" + (cls ? " " + cls : "");
+  }
+
+  // ----------------------------------------------------- temporal trace
+  function logEvent(event, params) {
+    let entry;
+    try {
+      entry = NS.makeTraceEntry(event, params); // throws on natal-data leak
+    } catch (err) {
+      entry = NS.makeTraceEntry("privacy_guard_blocked", { attempted: event });
+    }
+    temporalTrace.push(entry);
+    if (temporalTrace.length > TRACE_MAX) {
+      temporalTrace = temporalTrace.slice(-TRACE_MAX);
+    }
+    renderTrace();
+    persist();
+  }
+
+  function renderTrace() {
+    const list = $("trace-list");
+    list.textContent = "";
+    for (let i = temporalTrace.length - 1; i >= Math.max(0, temporalTrace.length - 80); i--) {
+      const e = temporalTrace[i];
+      const li = document.createElement("li");
+      const b = document.createElement("b");
+      b.textContent = e.event;
+      li.appendChild(b);
+      li.appendChild(document.createTextNode(
+        " " + e.timestamp_utc + " " + JSON.stringify(e.params)));
+      list.appendChild(li);
+    }
+  }
+
+  // ------------------------------------------------------- persistence
+  // localStorage carries ONLY: sentinel params, seed digest, trace tail.
+  function persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        schema_version: NS.SCHEMA_VERSION,
+        timestamp_utc: new Date().toISOString(),
+        sentinel: sentinel,
+        seed_hex: seed !== null ? NS.seedToHex(seed) : undefined,
+        temporal_trace: temporalTrace.slice(-200),
+      }));
+    } catch (err) { /* storage full/blocked: non-fatal, stay in memory */ }
+  }
+
+  function restore() {
+    let raw;
+    try { raw = localStorage.getItem(STORAGE_KEY); } catch (err) { return; }
+    if (!raw) return;
+    try {
+      const saved = JSON.parse(raw);
+      sentinel = NS.clampSentinelParams(saved.sentinel || {});
+      sentinel.active = false; // audio can't be running yet; require re-toggle
+      if (Array.isArray(saved.temporal_trace)) {
+        temporalTrace = saved.temporal_trace.filter((e) =>
+          e && typeof e.event === "string" && typeof e.params === "object");
+      }
+    } catch (err) { /* corrupt storage: ignore, keep defaults */ }
+  }
+
+  window.addEventListener("storage", (e) => {
+    if (e.key !== STORAGE_KEY || !e.newValue) return;
+    try {
+      const saved = JSON.parse(e.newValue);
+      const incoming = NS.clampSentinelParams(saved.sentinel || {});
+      incoming.active = sentinel.active; // toggle stays local to this tab
+      sentinel = incoming;
+      syncSentinelUI();
+      applySentinelParams();
+    } catch (err) { /* ignore malformed cross-tab payloads */ }
+  });
+
+  // ------------------------------------------------------------- audio
+  function startAudio() {
+    if (ctx) { stopAudio(); return; }
+    if (bedrock.length === 0) {
+      setStatus($("engine-status"), "Anchor a natal seed first — the bedrock frequencies come from the chart.", "warn");
+      return;
+    }
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -18;
+    compressor.ratio.value = 6;
+    master = ctx.createGain();
+    master.gain.value = Number($("master-vol").value) / 100 * 0.6;
+    master.connect(compressor).connect(ctx.destination);
+
+    // Natal bedrock oscillators — frequencies set once, never modulated.
+    for (const f of bedrock) {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = NS.clampFrequency(f);
+      const g = ctx.createGain();
+      g.gain.value = 0.06;
+      osc.connect(g).connect(master);
+      osc.start();
+      bedrockNodes.push({ osc, g });
+    }
+    // Binaural pair (carrier ± beat/2, hard-panned L/R).
+    if (binaural) {
+      for (const side of [-1, 1]) {
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = NS.clampFrequency(
+          binaural.carrier_hz + side * binaural.beat_hz / 2);
+        const g = ctx.createGain();
+        g.gain.value = 0.05;
+        const pan = ctx.createStereoPanner();
+        pan.pan.value = side;
+        osc.connect(g).connect(pan).connect(master);
+        osc.start();
+        binauralNodes.push({ osc, g, pan });
+      }
+    }
+    $("btn-audio").textContent = "Stop audio";
+    $("audio-badge").textContent = "audio on";
+    $("audio-badge").className = "badge on";
+    setStatus($("engine-status"),
+      "Bedrock running: " + bedrock.length + " natal oscillators + binaural pair.", "ok");
+    if (sentinel.active) startSentinelOverlay();
+  }
+
+  function stopAudio() {
+    stopSentinelOverlay(true);
+    for (const n of bedrockNodes.concat(binauralNodes)) {
+      try { n.osc.stop(); } catch (err) { /* already stopped */ }
+    }
+    bedrockNodes = []; binauralNodes = [];
+    if (ctx) { ctx.close(); ctx = null; }
+    $("btn-audio").textContent = "Start audio";
+    $("audio-badge").textContent = "audio off";
+    $("audio-badge").className = "badge";
+    setStatus($("engine-status"), "Audio stopped.");
+  }
+
+  // -------------------------------------------------- sentinel overlay
+  function startSentinelOverlay() {
+    if (!ctx || seed === null) return;
+    stopSentinelOverlay(false);
+    // Deterministic replay: re-seed the PRNG at every activation.
+    prng = NS.createNatalPRNG(seed);
+    buildGhosts();
+    retargetGhosts();
+    entropyTimer = setInterval(retargetGhosts, ENTROPY_INTERVAL_MS);
+  }
+
+  function buildGhosts() {
+    const n = sentinel.n;
+    const per = n > 0 ? GHOST_GAIN_TOTAL / Math.max(n, 8) : 0;
+    // Substitution-ordered placement: the ghost bank is a 1-D quasiperiodic
+    // lattice (Fibonacci word, Pisot => pure point diffraction) rather than a
+    // periodic index map. spread = 0 reproduces the former bedrock cycling
+    // exactly, so this is backwards compatible at the low end. Bedrock is
+    // read, never written; every base frequency passes clampFrequency.
+    const word = NS.substitutionWord(Math.max(n, 1));
+    const bases = NS.ghostPlacement(bedrock, n, sentinel.spread, word);
+    for (let i = 0; i < n; i++) {
+      const osc = ctx.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.value = bases[i];
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      g.gain.linearRampToValueAtTime(per, ctx.currentTime + 0.8);
+      osc.connect(g).connect(master);
+      osc.start();
+      ghostNodes.push({ osc, g, base: bases[i], current: 0, sym: word[i % word.length] });
+    }
+    logEvent("ghost_placement", {
+      voices: n,
+      order: "fibonacci",
+      sturmian_defect: NS.sturmianDefect(NS.substitutionWord(200)),
+      span_hz: n ? Number((Math.max(...bases) - Math.min(...bases)).toFixed(3)) : 0,
+    });
+  }
+
+  function retargetGhosts() {
+    if (!ctx || !prng || ghostNodes.length === 0) {
+      lastDeviation = { mean: 0, max: 0 };
+      return;
+    }
+    let sum = 0, max = 0;
+    ghostNodes.forEach((node, i) => {
+      // base comes from frozen bedrock; modulateFrequency never writes it.
+      const target = NS.modulateFrequency(node.base, i, sentinel, prng);
+      node.current = target;
+      node.osc.frequency.linearRampToValueAtTime(
+        target, ctx.currentTime + ENTROPY_INTERVAL_MS / 1000 * 0.9);
+      const dev = Math.abs(target - node.base);
+      sum += dev; max = Math.max(max, dev);
+    });
+    lastDeviation = { mean: sum / ghostNodes.length, max };
+    setStatus($("deviation-status"),
+      "deviation from baseline — mean " + lastDeviation.mean.toFixed(2) +
+      " Hz, max " + lastDeviation.max.toFixed(2) + " Hz");
+    logEvent("entropy_event", {
+      voices: ghostNodes.length,
+      deviation_mean_hz: Number(lastDeviation.mean.toFixed(3)),
+      deviation_max_hz: Number(lastDeviation.max.toFixed(3)),
+    });
+  }
+
+  function stopSentinelOverlay(log) {
+    if (entropyTimer) { clearInterval(entropyTimer); entropyTimer = null; }
+    for (const n of ghostNodes) {
+      try {
+        n.g.gain.cancelScheduledValues(ctx ? ctx.currentTime : 0);
+        n.g.gain.value = 0;
+        n.osc.stop();
+      } catch (err) { /* already stopped */ }
+    }
+    ghostNodes = [];
+    lastDeviation = { mean: 0, max: 0 };
+    setStatus($("deviation-status"), "");
+    if (log) {
+      logEvent("deviation_summary", {
+        note: "overlay stopped; output restored to pure natal baseline",
+      });
+    }
+  }
+
+  function applySentinelParams() {
+    // n changed while active -> rebuild ghost bank deterministically.
+    if (sentinel.active && ctx) {
+      if (ghostNodes.length !== sentinel.n) startSentinelOverlay();
+    }
+  }
+
+  // ------------------------------------------------------------ anchor
+  function anchorSeed() {
+    let parsed;
+    try {
+      parsed = JSON.parse($("chart-json").value);
+    } catch (err) {
+      setStatus($("seed-status"), "Chart is not valid JSON.", "warn");
+      return;
+    }
+    let newSeed;
+    try {
+      newSeed = NS.deriveNatalSeed(parsed, $("intention").value);
+    } catch (err) {
+      // Safe error path: generic message, never echoes chart values.
+      setStatus($("seed-status"),
+        err instanceof NS.ChartValidationError
+          ? "Chart rejected: " + err.message
+          : "Could not derive seed from this chart.", "warn");
+      return;
+    }
+    const wasRunning = Boolean(ctx);
+    if (wasRunning) stopAudio();
+    chart = parsed;                          // memory only
+    seed = newSeed;
+    bedrock = NS.bedrockFrequencies(chart);  // frozen natal baseline
+    binaural = NS.binauralConfig(chart);
+    intentionForExport = NS.sanitizeIntention($("intention").value);
+    $("sentinel-active").disabled = false;
+    $("sentinel-hint").textContent = "";
+    setStatus($("seed-status"),
+      "Seed anchored: " + NS.seedToHex(seed) + " · " + bedrock.length +
+      " bedrock frequencies (one-way digest; chart stays in memory only)", "ok");
+    logEvent("seed_anchor", {
+      seed_hex: NS.seedToHex(seed),
+      intention_len: intentionForExport.length,
+      chart_fields: Object.keys(chart).length,
+      bedrock_count: bedrock.length,
+    });
+    if (wasRunning) startAudio();
+  }
+
+  // ----------------------------------------------------- export/import
+  function exportState() {
+    const includeChart = $("opt-include-chart").checked;
+    let state = {
+      schema_version: NS.SCHEMA_VERSION,
+      timestamp_utc: new Date().toISOString(),
+      natal_seed_intention: includeChart ? intentionForExport : "",
+      sentinel: sentinel,
+      seed_hex: seed !== null ? NS.seedToHex(seed) : undefined,
+      temporal_trace: temporalTrace,
+    };
+    if (includeChart && chart) {
+      state.natal_chart = chart; // explicit opt-in only
+    } else {
+      state = NS.redactState(state); // default: redacted
+    }
+    logEvent("state_export", { redacted: !includeChart });
+    const blob = new Blob([JSON.stringify(state, null, 2)],
+                          { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "resonarium-state-" + Date.now() + ".json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importState(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const raw = JSON.parse(String(reader.result));
+        const incoming = NS.redactState(raw); // never ingest chart via state
+        sentinel = NS.clampSentinelParams(incoming.sentinel || {});
+        if (sentinel.active && seed === null) sentinel.active = false;
+        syncSentinelUI();
+        onToggleChanged(false);
+        logEvent("state_import", { sentinel: sentinel });
+        setStatus($("engine-status"), "State imported (chart data, if any, was stripped).", "ok");
+      } catch (err) {
+        setStatus($("engine-status"), "Import failed: file is not a valid state JSON.", "warn");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ----------------------------------------------------------- UI wiring
+  function syncSentinelUI() {
+    $("s-n").value = sentinel.n;
+    $("s-k").value = Math.round(sentinel.k * 100);
+    $("s-perturb").value = sentinel.perturb;
+    $("s-spread").value = sentinel.spread;
+    $("n-value").textContent = String(sentinel.n);
+    $("k-value").textContent = sentinel.k.toFixed(2);
+    $("perturb-value").textContent = sentinel.perturb.toFixed(1);
+    $("spread-value").textContent = sentinel.spread.toFixed(1);
+    $("sentinel-active").checked = sentinel.active;
+    $("sentinel-controls").disabled = !sentinel.active;
+    $("sentinel-badge").textContent = sentinel.active ? "sentinel on" : "sentinel off";
+    $("sentinel-badge").className = "badge" + (sentinel.active ? " on" : "");
+  }
+
+  function readSliders() {
+    return NS.clampSentinelParams({
+      active: sentinel.active,
+      n: Number($("s-n").value),
+      k: Number($("s-k").value) / 100,
+      perturb: Number($("s-perturb").value),
+      spread: Number($("s-spread").value),
+    });
+  }
+
+  function onToggleChanged(fromUser) {
+    if (fromUser) {
+      sentinel.active = $("sentinel-active").checked && seed !== null;
+      logEvent("sentinel_toggle", { active: sentinel.active });
+    }
+    syncSentinelUI();
+    persist();
+    if (!ctx) return;
+    if (sentinel.active) startSentinelOverlay();
+    else stopSentinelOverlay(true);
+  }
+
+  function onSliderInput() {
+    const next = readSliders();
+    const label = {};
+    for (const key of ["n", "k", "perturb", "spread"]) {
+      if (next[key] !== sentinel[key]) label[key] = next[key];
+    }
+    sentinel = next;
+    syncSentinelUI();
+    return label;
+  }
+
+  $("gate-accept").addEventListener("click", () => {
+    $("gate").style.display = "none";
+  });
+  $("btn-audio").addEventListener("click", startAudio);
+  $("master-vol").addEventListener("input", () => {
+    if (master) master.gain.value = Number($("master-vol").value) / 100 * 0.6;
+  });
+  $("btn-anchor").addEventListener("click", anchorSeed);
+  $("btn-demo").addEventListener("click", () => {
+    $("chart-json").value = JSON.stringify(NS.TEST_CHART, null, 2);
+    $("intention").value = NS.TEST_INTENTION;
+  });
+  $("sentinel-active").addEventListener("change", () => onToggleChanged(true));
+  for (const id of ["s-n", "s-k", "s-perturb", "s-spread"]) {
+    $(id).addEventListener("input", onSliderInput);
+    $(id).addEventListener("change", () => {
+      const changed = onSliderInput();
+      logEvent("param_change", Object.keys(changed).length ? changed : sentinelParamsOnly());
+      applySentinelParams();
+    });
+  }
+  function sentinelParamsOnly() {
+    return { n: sentinel.n, k: sentinel.k,
+             perturb: sentinel.perturb, spread: sentinel.spread };
+  }
+  $("btn-export").addEventListener("click", exportState);
+  $("btn-import").addEventListener("click", () => $("import-file").click());
+  $("import-file").addEventListener("change", (e) => {
+    if (e.target.files[0]) importState(e.target.files[0]);
+    e.target.value = "";
+  });
+  $("btn-clear-trace").addEventListener("click", () => {
+    temporalTrace = [];
+    renderTrace();
+    persist();
+  });
+
+  // ------------------------------------------------------ visualization
+  const canvas = $("viz");
+  const g2d = canvas.getContext("2d");
+  // Rotation rate is a visual modulation frequency: hard-capped below the
+  // photosensitive risk zone by clampVisualModulationHz (max 2.5 Hz).
+  function draw(tMs) {
+    const w = canvas.width, h = canvas.height;
+    const cx = w / 2, cy = h / 2;
+    g2d.fillStyle = "rgba(7,7,15,0.35)";
+    g2d.fillRect(0, 0, w, h);
+    const t = tMs / 1000;
+
+    // Bedrock rings — fixed geometry, calm slow rotation.
+    const baseRotHz = NS.clampVisualModulationHz(0.05);
+    bedrock.forEach((f, i) => {
+      const r = 40 + 90 * Math.log2(f / NS.FREQ_MIN_HZ) / Math.log2(NS.FREQ_MAX_HZ / NS.FREQ_MIN_HZ) * 3;
+      g2d.beginPath();
+      g2d.strokeStyle = "rgba(126,200,227,0.5)";
+      g2d.lineWidth = 1.5;
+      g2d.arc(cx, cy, r, 0, Math.PI * 2);
+      g2d.stroke();
+      const a = t * baseRotHz * Math.PI * 2 + i * (Math.PI * 2 / Math.max(bedrock.length, 1));
+      g2d.beginPath();
+      g2d.fillStyle = "#7ec8e3";
+      g2d.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3, 0, Math.PI * 2);
+      g2d.fill();
+    });
+
+    // Sentinel ghost rings — density n, dispersion spread, wobble ∝ deviation.
+    if (sentinel.active && ghostNodes.length > 0) {
+      const rotHz = NS.clampVisualModulationHz(0.08 + sentinel.spread * 0.05);
+      ghostNodes.forEach((node, i) => {
+        const baseR = 30 + (i / Math.max(ghostNodes.length, 1)) * 150 *
+                      (1 + sentinel.spread * 0.08);
+        const wobble = Math.min(Math.abs(node.current - node.base), 30) * 0.6;
+        const r = baseR + Math.sin(t * rotHz * Math.PI * 2 + i) * wobble;
+        g2d.beginPath();
+        g2d.strokeStyle = "rgba(215,185,122,0.32)";
+        g2d.setLineDash([4, 6]);
+        g2d.lineWidth = 1;
+        g2d.arc(cx, cy, Math.max(r, 4), 0, Math.PI * 2);
+        g2d.stroke();
+        g2d.setLineDash([]);
+      });
+    }
+    if (bedrock.length === 0) {
+      g2d.fillStyle = "rgba(139,139,176,0.8)";
+      g2d.font = "13px system-ui";
+      g2d.textAlign = "center";
+      g2d.fillText("Anchor a natal seed to raise the field", cx, cy);
+    }
+    requestAnimationFrame(draw);
+  }
+
+  // -------------------------------------------------------------- init
+  restore();
+  syncSentinelUI();
+  renderTrace();
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
