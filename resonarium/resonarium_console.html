@@ -496,7 +496,8 @@
     </h2>
     <div class="pbody">
       <div class="row">
-        <button class="sm grow" id="btn-demo">Demo chart</button>
+        <button class="sm grow" id="btn-demo">Demo</button>
+        <button class="sm grow" id="btn-full">Full chart</button>
         <button class="sm grow" id="btn-random">Random</button>
         <button class="sm" id="btn-clear-chart">Clear</button>
       </div>
@@ -578,7 +579,48 @@
   </div>
 
   <div class="panel">
-    <h2><span class="idx">04</span> State &amp; snapshots
+    <h2><span class="idx">04</span> Aspect field
+      <button class="im" data-info="aspect-field" aria-label="About the aspect field"></button>
+      <span class="h2-right" id="aspect-count">0</span>
+    </h2>
+    <div class="pbody tight">
+      <div class="knob" style="margin:2px 0 8px">
+        <div class="knob-head">
+          <span class="kname">orb scale</span>
+          <button class="im" data-info="p-orb" aria-label="About orb scale"></button>
+          <span class="kval" id="k-orb">1.00</span>
+        </div>
+        <input type="range" id="s-orb" min="0.1" max="3" step="0.05" value="1">
+        <div class="knob-scale"><span>0.1 tight</span><span>3.0 wide</span></div>
+      </div>
+      <label class="fld" for="sel-mode">interference mode
+        <button class="im" data-info="interference" aria-label="About interference modes"></button>
+      </label>
+      <select id="sel-mode">
+        <option value="monaural">monaural — physical beating</option>
+        <option value="binaural">binaural — dichotic, headphones</option>
+        <option value="isochronic">isochronic — gated amplitude</option>
+      </select>
+      <div class="row mt">
+        <button class="primary grow" id="btn-aspects">Raise aspect field</button>
+      </div>
+      <div class="status" id="aspect-status"></div>
+    </div>
+    <div class="tbl-wrap" style="max-height:190px">
+      <table class="eng" id="tbl-aspect">
+        <thead><tr>
+          <th>pair</th><th>aspect</th>
+          <th style="text-align:right">orb</th>
+          <th style="text-align:right">beat</th>
+          <th style="text-align:right">&cent;</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="idx">05</span> State &amp; snapshots
       <button class="im" data-info="state-io" aria-label="About state export and import"></button>
     </h2>
     <div class="pbody">
@@ -638,7 +680,7 @@
 <div class="rail right">
 
   <div class="panel">
-    <h2><span class="idx">05</span> Sentinel overlay
+    <h2><span class="idx">06</span> Sentinel overlay
       <button class="im" data-info="sentinel" aria-label="About sentinel mode"></button>
       <span class="h2-right"><span class="kbd">S</span></span>
     </h2>
@@ -689,7 +731,7 @@
   </div>
 
   <div class="panel">
-    <h2><span class="idx">06</span> Telemetry
+    <h2><span class="idx">07</span> Telemetry
       <button class="im" data-info="telemetry" aria-label="About telemetry"></button>
     </h2>
     <div class="pbody tight">
@@ -702,6 +744,11 @@
       <div class="readout"><span class="rk">sturmian defect
         <button class="im" data-info="sturmian" aria-label="About the Sturmian defect"></button>
       </span><span class="rv ok" id="t-defect">&mdash;</span></div>
+      <div class="readout"><span class="rk">beat band
+        <button class="im" data-info="beat-band" aria-label="About the beat band"></button>
+      </span><span class="rv ok" id="t-beat">&mdash;</span></div>
+      <div class="readout"><span class="rk">interference voices</span>
+        <span class="rv" id="t-ivoices">0</span></div>
       <div class="readout"><span class="rk">prng draws</span>
         <span class="rv" id="t-draws">0</span></div>
       <div class="readout"><span class="rk">next entropy</span>
@@ -712,7 +759,7 @@
   </div>
 
   <div class="panel">
-    <h2><span class="idx">07</span> Ghost lattice
+    <h2><span class="idx">08</span> Ghost lattice
       <button class="im" data-info="lattice" aria-label="About the ghost lattice"></button>
       <span class="h2-right" id="lat-word">&mdash;</span>
     </h2>
@@ -730,7 +777,7 @@
   </div>
 
   <div class="panel">
-    <h2><span class="idx">08</span> Temporal trace
+    <h2><span class="idx">09</span> Temporal trace
       <button class="im" data-info="trace" aria-label="About the temporal trace"></button>
       <span class="h2-right" id="trace-count">0</span>
     </h2>
@@ -1082,6 +1129,92 @@
       see: ["prng", "p-k", "clamp-freq", "sentinel"],
     },
 
+    /* ---------------------------------------------- aspect / interference */
+    "aspect-field": {
+      title: "Aspect field", tag: "module",
+      body: "Angular relationships between bodies, raised as interference. The " +
+        "bedrock map already makes 180 degrees of arc exactly one octave, so an " +
+        "aspect angle is an interval with no tuning table needed: 1 degree is " +
+        "20/3 cents. What matters here is not the interval but what happens " +
+        "between the two tones — the beating, and the nodal structure it drives.",
+      formula: "1 degree = 1200/180 = 20/3 cents\n" +
+        "sextile 60 → 400¢    square 90 → 600¢\n" +
+        "trine 120 → 800¢     opposition 180 → 1200¢",
+      meta: [["types", "9"], ["pair order", "canonical"], ["parity", "bit-exact"]],
+      why: "Detection uses only comparison and arithmetic — no transcendentals — " +
+        "so it is held to bit-exact agreement with the Python implementation " +
+        "rather than a tolerance. That is stricter than the bedrock itself, which " +
+        "goes through pow() and can differ in the last bit.",
+      see: ["p-orb", "interference", "beat-band", "bedrock"],
+      live: () => S.aspects.length
+        ? S.aspects.length + " aspects at orb scale " + S.orbScale.toFixed(2)
+        : null,
+    },
+
+    "p-orb": {
+      title: "orb scale", tag: "parameter",
+      body: "Multiplies every aspect's default orb. Each type carries its own: " +
+        "8 degrees for conjunction and opposition, 6 for square and trine, 4 for " +
+        "sextile, 2 to 3 for the minor aspects. Widening admits looser pairs, and " +
+        "because orb sets beat rate, it also thickens the beating.",
+      formula: "limit = default_orb × scale\n" +
+        "matched when |separation − angle| ≤ limit\n" +
+        "strength = 1 − orb / limit",
+      meta: [["range", "0.10–3.00"], ["tie-break", "tighter orb wins"]],
+      why: "Widening the orb can only add aspects, never remove one — a property " +
+        "the suite asserts directly. Where two types are simultaneously in orb, " +
+        "possible only at high scale, the tighter match wins and an exact tie goes " +
+        "to the earlier entry, so the result never depends on iteration order.",
+      see: ["aspect-field", "beat-band"],
+      live: () => "scale " + S.orbScale.toFixed(2) + " · " +
+        S.aspects.length + " aspects in orb",
+    },
+
+    interference: {
+      title: "Interference mode", tag: "parameter",
+      body: "Three physically distinct ways to present the same pair of tones. " +
+        "Each aspect becomes a voice at the interval frequency, split into two " +
+        "partials offset by the orb — and how those partials reach you decides " +
+        "which phenomenon you get.",
+      formula: "monaural   L+R both get f ± beat/2  → air beats\n" +
+        "binaural   L gets f − beat/2, R gets f + beat/2\n" +
+        "isochronic single tone, amplitude gated at beat Hz",
+      meta: [["monaural", "acoustic"], ["binaural", "dichotic"], ["isochronic", "gated"]],
+      why: "They are not interchangeable. Monaural beating happens in the air and " +
+        "survives speakers. Binaural beating does not exist acoustically at all — " +
+        "the two tones never meet outside the listener, so it needs headphones and " +
+        "collapses to a single tone without them. Isochronic gates the envelope " +
+        "instead of relying on either, so the pulse is present on any playback.",
+      see: ["beat-band", "aspect-field", "binaural"],
+      live: () => "mode: " + S.mode + " · " + S.aspectVoices.length + " voices live",
+    },
+
+    "beat-band": {
+      title: "Beat band", tag: "readout",
+      body: "The spread of beat rates currently sounding, taken from the orbs. An " +
+        "exact aspect has orb zero and produces no beating at all — a pure tone. " +
+        "A wide one shimmers. The chart decides the rhythm; there is no clock and " +
+        "no tempo anywhere in this engine.",
+      formula: "beat_hz = clamp(orb, 0, 12)\n" +
+        "exact aspect (orb 0) → pure, no beating",
+      meta: [["ceiling", "12 Hz"], ["source", "orb, in degrees"]],
+      why: "Capping at 12 Hz keeps the beat inside the range perceived as pulsing " +
+        "rather than as roughness or a separate difference tone. Above roughly " +
+        "15–20 Hz the ear stops hearing two tones beating and starts hearing a " +
+        "third, which is a different phenomenon than the one being built here.",
+      see: ["interference", "p-orb", "visual-cap"],
+      live: () => {
+        if (!S.aspectVoices.length) return null;
+        const b = S.aspectVoices.map((v) => v.beat_hz);
+        const pure = b.filter((x) => x === 0).length;
+        const moving = b.filter((x) => x > 0);
+        if (!moving.length) return pure + " pure — every aspect exact, no beating";
+        return pure + " pure · rest " +
+          Math.min.apply(null, moving).toFixed(2) + "–" +
+          Math.max.apply(null, moving).toFixed(2) + " Hz";
+      },
+    },
+
     /* ------------------------------------------------------- lattice */
     lattice: {
       title: "Ghost lattice", tag: "geometry",
@@ -1267,8 +1400,10 @@
 
     "view-cymatic": {
       title: "Cymatic view", tag: "view",
-      body: "A spherical-harmonic nodal field. Each active voice contributes one " +
-        "real Yₗᵐ mode, with l and m derived from its frequency and the seed. " +
+      body: "A spherical-harmonic nodal field — the geometric space the tones " +
+        "open up. Each active voice contributes one real Yₗᵐ mode; bedrock voices " +
+        "take l and m from the seed, and every detected aspect adds a mode whose " +
+        "degree comes from its angle and whose pulse comes from its orb. " +
         "The surface is displaced by the summed amplitude and rendered as a depth-sorted " +
         "point cloud. Drag to rotate, scroll to zoom.",
       formula: "Yₗᵐ(θ,φ) = Nₗᵐ · Pₗᵐ(cos θ) · " +
@@ -1322,6 +1457,12 @@
     bedrock: Object.freeze([]),   // frozen at anchor; never rewritten
     binaural: null,
     sentinel: NS.clampSentinelParams({}),
+    aspects: [],            // detected at anchor, recomputed on orb change
+    weights: {},            // per-body gain weight from summed aspect strength
+    aspectVoices: [],       // live interference voices (audio nodes)
+    aspectsActive: false,
+    orbScale: 1.0,
+    mode: "monaural",
     word: "",
     ghostBases: [],         // lattice sites, computed with or without audio
     ghosts: [],             // live audio nodes
@@ -1337,6 +1478,11 @@
   const TRACE_MAX = 500;
   const ENTROPY_MS = 4000;
   const GHOST_GAIN_TOTAL = 0.12;
+  // A dense chart can yield 50+ aspects. Two oscillators each is a lot of nodes
+  // for no audible gain once they are sharing a fixed budget, so only the
+  // strongest survive. Selection is by gain, which is strength-ordered, so it
+  // is deterministic rather than dependent on detection order.
+  const ASPECT_VOICE_CAP = 24;
 
   // audio graph
   let ctx = null, master = null, comp = null, analyser = null, freqData = null;
@@ -1536,6 +1682,17 @@
      SEED SPINE
      ================================================================== */
   const DEMO_CHART = { sun:142.73, moon:78.41, asc:215.92, mc:312.44, aspects_sum:1247.8 };
+  // A full chart, so the aspect field has something to find. Deliberately NOT
+  // the exact-aspect chart used in the parity tests: every orb there is zero,
+  // which means every voice is pure and nothing beats — correct for asserting
+  // the geometry, useless for hearing it. These longitudes sit 1.4–5.9 degrees
+  // off exact, so the field arrives with a real spread of beat rates.
+  // The demo chart above is the cross-language reference vector and must not change.
+  const FULL_CHART = {
+    sun:10.0, moon:72.4, mercury:97.8, venus:133.1, mars:186.5,
+    jupiter:56.9, saturn:148.2, uranus:161.7, neptune:38.6, pluto:14.2,
+    asc:281.4, mc:15.9, aspects_sum:1544.5,
+  };
 
   function anchorSeed() {
     let parsed;
@@ -1576,6 +1733,7 @@
     S.prng = NS.createNatalPRNG(seed);
     S.draws = 0;
 
+    rebuildAspects();
     rebuildLattice();
     renderChain();
     renderBedrockTable();
@@ -1585,6 +1743,7 @@
     logEvent("natal_anchor", {
       seed_hex: S.digestHex,
       bedrock_voices: bedrock.length,
+      aspects: S.aspects.length,
       carrier_hz: Number(binaural.carrier_hz.toFixed(3)),
       beat_hz: Number(binaural.beat_hz.toFixed(3)),
     });
@@ -1659,6 +1818,57 @@
   }
 
   /* ------------------------------------------------------------------
+     Aspect field. Detection is pure arithmetic and runs with or without
+     audio, so the table and the Field view arcs are live before anything
+     is sounding.
+     ------------------------------------------------------------------ */
+  function rebuildAspects() {
+    if (!S.chart) { S.aspects = []; S.weights = {}; renderAspectTable(); return; }
+    try {
+      S.aspects = NS.detectAspects(S.chart, S.orbScale);
+      S.weights = NS.aspectWeights(S.chart, S.aspects);
+    } catch (err) {
+      S.aspects = []; S.weights = {};
+    }
+    renderAspectTable();
+    rebuildCymModes();
+  }
+
+  function aspectKeys() {
+    return NS.LONGITUDE_KEYS.filter(
+      (k) => S.chart && k in S.chart && typeof S.chart[k] === "number");
+  }
+
+  function aspectPlan() {
+    if (!S.aspects.length || !S.bedrock.length) return [];
+    const plan = NS.aspectVoicePlan(S.bedrock, aspectKeys(), S.aspects);
+    // Strongest first, then capped — deterministic, not detection-ordered.
+    return plan.slice().sort((a, b) => b.gain - a.gain).slice(0, ASPECT_VOICE_CAP);
+  }
+
+  function renderAspectTable() {
+    const tb = $("tbl-aspect").tBodies[0];
+    tb.textContent = "";
+    for (const a of S.aspects.slice(0, 60)) {
+      const tr = document.createElement("tr");
+      const c1 = document.createElement("td"); c1.className = "k";
+      c1.textContent = a.a.slice(0, 3) + "\u2013" + a.b.slice(0, 3);
+      const c2 = document.createElement("td");
+      c2.className = a.harmony === "hard" ? "s" : "k";
+      c2.textContent = a.aspect.slice(0, 7);
+      const c3 = document.createElement("td"); c3.className = "n";
+      c3.textContent = a.orb.toFixed(2);
+      const c4 = document.createElement("td"); c4.className = "n";
+      c4.textContent = Math.min(a.orb, NS.ASPECT_BEAT_MAX_HZ).toFixed(2);
+      const c5 = document.createElement("td"); c5.className = "n";
+      c5.textContent = NS.aspectCents(a.angle).toFixed(0);
+      tr.append(c1, c2, c3, c4, c5);
+      tb.appendChild(tr);
+    }
+    $("aspect-count").textContent = S.aspects.length + " found";
+  }
+
+  /* ------------------------------------------------------------------
      Lattice — computed independently of the audio graph so the Lattice
      view and the ghost table are meaningful before audio ever starts.
      ------------------------------------------------------------------ */
@@ -1729,17 +1939,21 @@
     master.connect(analyser);
     master.connect(comp).connect(ctx.destination);
 
-    // Natal bedrock — frequency written once here and never again.
-    for (const f of S.bedrock) {
+    // Natal bedrock — frequency written once here and never again. Only the
+    // GAIN takes the aspect weighting; the frequency stays untouched, which is
+    // the same invariant the sentinel overlay is held to.
+    const keys = aspectKeys();
+    S.bedrock.forEach((f, i) => {
       const osc = ctx.createOscillator();
       osc.type = "sine";
       osc.frequency.value = NS.clampFrequency(f);
       const g = ctx.createGain();
-      g.gain.value = 0.06;
+      const w = S.weights[keys[i]];
+      g.gain.value = 0.06 * (typeof w === "number" ? w : 1.0);
       osc.connect(g).connect(master);
       osc.start();
       bedrockNodes.push({ osc, g });
-    }
+    });
     // Binaural pair, hard-panned.
     if (S.binaural) {
       for (const side of [-1, 1]) {
@@ -1762,11 +1976,13 @@
     setStatus($("engine-status"),
       "bedrock " + S.bedrock.length + " voices + binaural pair", "ok");
     logEvent("audio_start", { bedrock_voices: S.bedrock.length });
+    if (S.aspectsActive) startAspectVoices();
     if (S.sentinel.active) startSentinel();
   }
 
   function stopAudio() {
     stopSentinel(false);
+    stopAspectVoices();
     for (const n of bedrockNodes.concat(binauralNodes)) {
       try { n.osc.stop(); } catch (err) { /* already stopped */ }
     }
@@ -1784,6 +2000,101 @@
     stopAudio();
     setStatus($("engine-status"), "panic — all output silenced", "warn");
     logEvent("panic", {});
+  }
+
+  /* ----------------------------------------------- interference voices
+     One voice per aspect, at the interval frequency, split into two partials
+     offset by the orb. Which of the three phenomena you get depends only on
+     how those partials are routed — see the "interference" codex entry.
+     ------------------------------------------------------------------- */
+  function startAspectVoices() {
+    if (!ctx) return;
+    stopAspectVoices();
+    const plan = aspectPlan();
+    for (const v of plan) {
+      const half = v.beat_hz / 2;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      g.gain.linearRampToValueAtTime(v.gain, ctx.currentTime + 1.2);
+      const node = { g, beat_hz: v.beat_hz, oscs: [], lfo: null,
+                     aspect: v.aspect, hz: v.partner_hz };
+
+      if (S.mode === "isochronic") {
+        // Single tone; the pulse is in the envelope, so it survives any
+        // playback path rather than depending on the listener's ears or room.
+        const osc = ctx.createOscillator();
+        osc.type = v.harmony === "hard" ? "triangle" : "sine";
+        osc.frequency.value = NS.clampFrequency(v.partner_hz);
+        osc.connect(g).connect(master);
+        osc.start();
+        node.oscs.push(osc);
+        if (v.beat_hz > 0) {
+          const lfo = ctx.createOscillator();
+          lfo.type = "sine";
+          lfo.frequency.value = v.beat_hz;
+          const depth = ctx.createGain();
+          depth.gain.value = v.gain * 0.5;
+          g.gain.value = v.gain * 0.5;
+          g.gain.cancelScheduledValues(ctx.currentTime);
+          lfo.connect(depth).connect(g.gain);
+          lfo.start();
+          node.lfo = lfo;
+        }
+      } else {
+        const split = S.mode === "binaural";
+        for (const side of [-1, 1]) {
+          const osc = ctx.createOscillator();
+          osc.type = v.harmony === "hard" ? "triangle" : "sine";
+          osc.frequency.value = NS.clampFrequency(v.partner_hz + side * half);
+          if (split) {
+            const pan = ctx.createStereoPanner();
+            pan.pan.value = side;
+            osc.connect(g).connect(pan).connect(master);
+          } else {
+            osc.connect(g).connect(master);
+          }
+          osc.start();
+          node.oscs.push(osc);
+        }
+      }
+      S.aspectVoices.push(node);
+    }
+    logEvent("aspect_field", {
+      voices: S.aspectVoices.length,
+      mode: S.mode,
+      orb_scale: Number(S.orbScale.toFixed(3)),
+      pure: S.aspectVoices.filter((v) => v.beat_hz === 0).length,
+    });
+  }
+
+  function stopAspectVoices() {
+    for (const v of S.aspectVoices) {
+      try {
+        v.g.gain.cancelScheduledValues(ctx ? ctx.currentTime : 0);
+        v.g.gain.value = 0;
+        for (const o of v.oscs) o.stop();
+        if (v.lfo) v.lfo.stop();
+      } catch (err) { /* already stopped */ }
+    }
+    S.aspectVoices = [];
+  }
+
+  function setAspectsActive(on) {
+    S.aspectsActive = !!on;
+    $("btn-aspects").textContent = on ? "Lower aspect field" : "Raise aspect field";
+    if (on) {
+      if (!S.aspects.length) {
+        setStatus($("aspect-status"), "no aspects in orb — widen the scale", "warn");
+      } else {
+        setStatus($("aspect-status"),
+          ctx ? "field raised" : "armed — start audio to hear it", "ok");
+      }
+      if (ctx) startAspectVoices();
+    } else {
+      stopAspectVoices();
+      setStatus($("aspect-status"), "");
+    }
+    persist();
   }
 
   /* ------------------------------------------------------- sentinel */
@@ -2047,6 +2358,32 @@
       g.fillText(f.toFixed(1), mx + 6, my + 3);
     });
 
+    // Aspect chords: each detected pair drawn between its two bedrock rings.
+    // Hard aspects lean gold, soft ones blue; opacity follows strength.
+    if (S.aspects.length) {
+      const keys = aspectKeys();
+      const idx = {};
+      keys.forEach((k, i) => { idx[k] = i; });
+      const ringR = (i) => 26 + logPos(S.bedrock[i]) * maxR * 1.9;
+      for (const a of S.aspects) {
+        const ia = idx[a.a], ib = idx[a.b];
+        if (ia === undefined || ib === undefined) continue;
+        if (ia >= S.bedrock.length || ib >= S.bedrock.length) continue;
+        const angA = t * rot * TAU + ia * (TAU / Math.max(S.bedrock.length, 1));
+        const angB = t * rot * TAU + ib * (TAU / Math.max(S.bedrock.length, 1));
+        const ra = ringR(ia), rb = ringR(ib);
+        const alpha = (0.06 + 0.30 * a.strength).toFixed(3);
+        g.strokeStyle = a.harmony === "hard"
+          ? "rgba(215,185,122," + alpha + ")"
+          : "rgba(126,200,227," + alpha + ")";
+        g.lineWidth = 0.5 + a.strength * 1.1;
+        g.beginPath();
+        g.moveTo(cx + Math.cos(angA) * ra, cy + Math.sin(angA) * ra);
+        g.lineTo(cx + Math.cos(angB) * rb, cy + Math.sin(angB) * rb);
+        g.stroke();
+      }
+    }
+
     // Ghosts: dashed rings, radius wobbles with live drift.
     if (S.sentinel.active && S.ghosts.length) {
       const grot = NS.clampVisualModulationHz(0.08 + S.sentinel.spread * 0.05);
@@ -2238,6 +2575,23 @@
         ghost: i >= S.bedrock.length,
       });
     });
+    // Aspect modes: the nodal geometry comes from the chart rather than from
+    // the generator. Degree follows the angle, so a conjunction is a simple
+    // figure and an opposition a highly lobed one; the pulse follows the orb,
+    // which is the same quantity driving the audible beating. It passes the
+    // 2.5 Hz visual clamp regardless of what the beat rate is — the audio may
+    // pulse at 12 Hz, the picture may not.
+    for (const a of S.aspects.slice(0, 18)) {
+      const l = Math.max(1, Math.min(9, 1 + Math.floor(a.angle / 22.5)));
+      const m = a.harmony === "hard" ? l : Math.floor(l / 2);
+      cymModes.push({
+        l, m,
+        amp: 0.10 + 0.22 * a.strength,
+        phase: (a.separation / 180) * TAU,
+        vhz: NS.clampVisualModulationHz(a.orb / 8),
+        aspect: true,
+      });
+    }
   }
 
   const projBuf = [];
@@ -2479,6 +2833,18 @@
     $("t-dev-mean").textContent = S.lastDev.mean.toFixed(2) + " Hz";
     $("t-dev-max").textContent = S.lastDev.max.toFixed(2) + " Hz";
     $("t-draws").textContent = String(S.draws);
+    $("t-ivoices").textContent = String(S.aspectVoices.length);
+    if (S.aspectVoices.length) {
+      const beats = S.aspectVoices.map((v) => v.beat_hz);
+      const pure = beats.filter((b) => b === 0).length;
+      const moving = beats.filter((b) => b > 0);
+      $("t-beat").textContent = moving.length
+        ? pure + " pure · " + Math.min.apply(null, moving).toFixed(2) + "–" +
+          Math.max.apply(null, moving).toFixed(2) + " Hz"
+        : pure + " pure";
+    } else {
+      $("t-beat").textContent = "—";
+    }
     $("t-fps").textContent = S.fps ? S.fps.toFixed(0) + " fps" : "—";
     $("t-next").textContent = S.nextEntropyAt
       ? Math.max(0, (S.nextEntropyAt - performance.now()) / 1000).toFixed(1) + " s"
@@ -2623,6 +2989,8 @@
         sentinel: S.sentinel,
         view: S.view,
         volume: Number($("master-vol").value),
+        orb_scale: S.orbScale,
+        mode: S.mode,
       }));
     } catch (err) { /* storage unavailable — not fatal */ }
   }
@@ -2636,6 +3004,13 @@
       S.sentinel = NS.clampSentinelParams(o.sentinel || {});
       S.sentinel.active = false;   // never auto-start the overlay
       if (o.view && VIEW_NOTE[o.view]) S.view = o.view;
+      if (typeof o.orb_scale === "number") {
+        S.orbScale = NS.clamp(o.orb_scale, NS.ORB_SCALE_LIMITS[0],
+                              NS.ORB_SCALE_LIMITS[1]);
+      }
+      if (o.mode === "monaural" || o.mode === "binaural" || o.mode === "isochronic") {
+        S.mode = o.mode;
+      }
       if (typeof o.volume === "number") {
         $("master-vol").value = Math.max(0, Math.min(100, o.volume));
       }
@@ -2649,6 +3024,34 @@
     $("gate").style.display = "none";
     resizeStage();
     logEvent("session_start", { schema_version: NS.SCHEMA_VERSION });
+  });
+
+  $("btn-full").addEventListener("click", () => {
+    $("chart-json").value = JSON.stringify(FULL_CHART);
+    if (!$("intention").value) $("intention").value = "clarity";
+    setStatus($("anchor-status"), "full chart loaded — press Anchor");
+  });
+
+  $("btn-aspects").addEventListener("click", () => setAspectsActive(!S.aspectsActive));
+
+  $("s-orb").addEventListener("input", () => {
+    S.orbScale = Number($("s-orb").value);
+    $("k-orb").textContent = S.orbScale.toFixed(2);
+    rebuildAspects();
+    if (codex.classList.contains("show") && codexAnchor) {
+      openCodex(codexAnchor.getAttribute("data-info"), codexAnchor);
+    }
+  });
+  $("s-orb").addEventListener("change", () => {
+    if (S.aspectsActive && ctx) startAspectVoices();
+    persist();
+  });
+
+  $("sel-mode").addEventListener("change", () => {
+    S.mode = $("sel-mode").value;
+    if (S.aspectsActive && ctx) startAspectVoices();
+    logEvent("interference_mode", { mode: S.mode });
+    persist();
   });
 
   $("btn-demo").addEventListener("click", () => {
@@ -2737,6 +3140,7 @@
     if (k === " " || ev.code === "Space") { ev.preventDefault(); startAudio(); return; }
     if (k === "s") { setSentinelActive(!S.sentinel.active); return; }
     if (k === "a") { anchorSeed(); rebuildCymModes(); return; }
+    if (k === "f") { setAspectsActive(!S.aspectsActive); return; }
     if (k === "escape") { panic(); return; }
   });
 
@@ -2744,11 +3148,15 @@
      INIT
      ================================================================== */
   restore();
+  $("s-orb").value = S.orbScale;
+  $("k-orb").textContent = S.orbScale.toFixed(2);
+  $("sel-mode").value = S.mode;
   syncSentinelUI();
   setView(S.view);
   renderChain();
   renderBedrockTable();
   renderGhostTable();
+  renderAspectTable();
   renderTrace();
   renderSnapshots();
   drawSigilChip();

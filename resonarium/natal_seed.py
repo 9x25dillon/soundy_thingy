@@ -394,3 +394,154 @@ def ghost_placement(bedrock, n: int, spread: float,
     mid = ratios[n // 2]
     return [clamp_frequency(bedrock[i % len(bedrock)] * ratios[i] / mid)
             for i in range(n)]
+
+
+# --- Aspect geometry as musical interval ----------------------------------
+# bedrock_frequencies maps 180 degrees of arc onto exactly one octave
+# (110 * 2**(lon/180)), which means an aspect angle IS an interval and needs
+# no separate tuning table: 1 degree = 1200/180 = 20/3 cents. Squares land on
+# 600 cents (tritone), trines on 800 (minor sixth), sextiles on 400 (major
+# third), oppositions on 1200 (octave).
+#
+# Note the consequence, which is an authorship choice rather than a bug: the
+# opposition — read as a hard aspect — maps to the most consonant interval
+# there is. Musical tension therefore comes from `harmony` and orb-driven
+# beating, NOT from the raw interval. See aspect_voice_plan.
+#
+# Mirrors natal_seed.js exactly. detect_aspects and aspect_weights use only
+# comparison and arithmetic, so they are bit-exact across substrates;
+# aspect_ratio goes through pow() and carries the same last-bit caveat as
+# bedrock_frequencies.
+
+CENTS_PER_DEGREE = 1200.0 / 180.0
+
+# angle, default orb in degrees, and harmonic class. Order is canonical:
+# where two aspects are both in orb, the earlier entry wins the tie.
+ASPECT_TYPES = [
+    {"name": "conjunction",    "angle": 0.0,   "orb": 8.0, "harmony": "neutral"},
+    {"name": "opposition",     "angle": 180.0, "orb": 8.0, "harmony": "hard"},
+    {"name": "trine",          "angle": 120.0, "orb": 6.0, "harmony": "soft"},
+    {"name": "square",         "angle": 90.0,  "orb": 6.0, "harmony": "hard"},
+    {"name": "sextile",        "angle": 60.0,  "orb": 4.0, "harmony": "soft"},
+    {"name": "quincunx",       "angle": 150.0, "orb": 3.0, "harmony": "hard"},
+    {"name": "semisextile",    "angle": 30.0,  "orb": 2.0, "harmony": "soft"},
+    {"name": "semisquare",     "angle": 45.0,  "orb": 2.0, "harmony": "hard"},
+    {"name": "sesquiquadrate", "angle": 135.0, "orb": 2.0, "harmony": "hard"},
+]
+
+ORB_SCALE_LIMITS = (0.1, 3.0)
+ASPECT_BEAT_MAX_HZ = 12.0
+ASPECT_GAIN_TOTAL = 0.10
+
+
+def aspect_cents(angle: float) -> float:
+    """Interval size in cents for an aspect angle. Arithmetic only."""
+    return float(angle) * CENTS_PER_DEGREE
+
+
+def aspect_ratio(angle: float) -> float:
+    """Frequency ratio for an aspect angle: 2**(angle/180)."""
+    return 2.0 ** (float(angle) / 180.0)
+
+
+def separation(lon_a: float, lon_b: float) -> float:
+    """Shortest arc between two longitudes, in [0, 180]."""
+    d = (float(lon_a) - float(lon_b)) % 360.0
+    return 360.0 - d if d > 180.0 else d
+
+
+def detect_aspects(chart: dict, orb_scale: float = 1.0) -> list[dict]:
+    """Aspects between longitude-bearing bodies present in `chart`.
+
+    Pairs are walked in CANONICAL order (LONGITUDE_KEYS, i < j) so the output
+    sequence is deterministic and identical in both implementations. Where two
+    aspect types are simultaneously in orb — possible only at high orb_scale —
+    the tighter one wins, and an exact tie goes to the earlier ASPECT_TYPES
+    entry. Uses no transcendentals, so it is bit-exact across substrates.
+    """
+    validate_chart(chart)
+    scale = clamp(float(orb_scale), *ORB_SCALE_LIMITS)
+    present = [k for k in LONGITUDE_KEYS
+               if k in chart and isinstance(chart[k], (int, float))
+               and not isinstance(chart[k], bool)]
+    out = []
+    for i, a in enumerate(present):
+        for b in present[i + 1:]:
+            sep = separation(chart[a] % 360.0, chart[b] % 360.0)
+            best = None
+            for spec in ASPECT_TYPES:
+                limit = spec["orb"] * scale
+                orb = abs(sep - spec["angle"])
+                if orb <= limit and (best is None or orb < best["orb"]):
+                    best = {
+                        "a": a, "b": b,
+                        "aspect": spec["name"],
+                        "angle": spec["angle"],
+                        "harmony": spec["harmony"],
+                        "separation": sep,
+                        "orb": orb,
+                        "strength": 1.0 - orb / limit if limit > 0.0 else 1.0,
+                    }
+            if best is not None:
+                out.append(best)
+    return out
+
+
+def aspect_weights(chart: dict, aspects: list[dict]) -> dict:
+    """Per-body gain weights in [0.35, 1.0] from summed aspect strength.
+
+    A heavily aspected body leads; an unaspected one sits at the floor rather
+    than vanishing. This is what turns the equal-gain bedrock cluster into
+    something with a foreground. Arithmetic only.
+    """
+    present = [k for k in LONGITUDE_KEYS
+               if k in chart and isinstance(chart[k], (int, float))
+               and not isinstance(chart[k], bool)]
+    totals = {k: 0.0 for k in present}
+    for asp in aspects:
+        if asp["a"] in totals:
+            totals[asp["a"]] += asp["strength"]
+        if asp["b"] in totals:
+            totals[asp["b"]] += asp["strength"]
+    peak = max(totals.values()) if totals else 0.0
+    if peak <= 0.0:
+        return {k: 1.0 for k in present}
+    return {k: 0.35 + 0.65 * (v / peak) for k, v in totals.items()}
+
+
+def aspect_voice_plan(bedrock, keys, aspects: list[dict],
+                      gain_total: float = ASPECT_GAIN_TOTAL) -> list[dict]:
+    """One interval voice per aspect, layered over the bedrock.
+
+    The partner tone is the root times the aspect's own ratio, so the interval
+    is the exact aspect angle rather than whatever the two bodies' absolute
+    longitudes happen to give (those are equivalent up to octave inversion).
+
+    Beat rate is the orb: an exact aspect is pure and a wide one shimmers. That
+    is the movement in the piece, and it comes from the chart rather than from
+    a clock. `harmony` selects the timbre, which is where tension has to come
+    from, since the opposition's raw interval is an octave.
+
+    Takes `bedrock` explicitly — like ghost_placement — so tests can isolate
+    the plan from pow()-induced last-bit noise in bedrock derivation.
+    """
+    index = {k: i for i, k in enumerate(keys)}
+    n = max(len(aspects), 1)
+    per = float(gain_total) / n
+    out = []
+    for asp in aspects:
+        i = index.get(asp["a"])
+        if i is None or i >= len(bedrock):
+            continue
+        root = clamp_frequency(bedrock[i])
+        out.append({
+            "a": asp["a"], "b": asp["b"],
+            "aspect": asp["aspect"],
+            "harmony": asp["harmony"],
+            "root_hz": root,
+            "partner_hz": clamp_frequency(root * aspect_ratio(asp["angle"])),
+            "cents": aspect_cents(asp["angle"]),
+            "beat_hz": clamp(asp["orb"], 0.0, ASPECT_BEAT_MAX_HZ),
+            "gain": per * asp["strength"],
+        })
+    return out

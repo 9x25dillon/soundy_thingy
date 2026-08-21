@@ -539,3 +539,202 @@ class TestCrossSubstrateDomain(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+# Duplicated verbatim in parity_check.cjs, the same way REF_BEDROCK is: the
+# two sides must not be able to drift by editing only one file.
+ASPECT_REF = {
+    "sun": 10.0, "pluto": 10.0, "neptune": 40.0, "jupiter": 55.0, "moon": 70.0,
+    "mercury": 100.0, "venus": 130.0, "saturn": 145.0, "uranus": 160.0,
+    "mars": 190.0, "asc": 283.0, "mc": 12.5,
+}
+
+
+class TestAspectGeometry(unittest.TestCase):
+    """Aspect angles as intervals, and the weighting they drive."""
+
+    def test_cents_are_exact_intervals(self):
+        # 180 degrees == one octave, so 1 degree == 20/3 cents exactly.
+        self.assertEqual(ns.aspect_cents(0.0), 0.0)
+        self.assertEqual(ns.aspect_cents(60.0), 400.0)    # major third
+        self.assertEqual(ns.aspect_cents(90.0), 600.0)    # tritone
+        self.assertEqual(ns.aspect_cents(120.0), 800.0)   # minor sixth
+        self.assertEqual(ns.aspect_cents(180.0), 1200.0)  # octave
+
+    def test_ratio_matches_bedrock_mapping(self):
+        """An aspect's ratio must equal the ratio the bedrock map would give
+        two bodies that far apart — otherwise the interval layer and the
+        bedrock layer are speaking different tunings."""
+        for angle in (0.0, 30.0, 60.0, 90.0, 120.0, 180.0):
+            direct = ns.aspect_ratio(angle)
+            via_bedrock = (110.0 * 2.0 ** (angle / 180.0)) / 110.0
+            self.assertTrue(math.isclose(direct, via_bedrock, rel_tol=1e-12))
+
+    def test_separation_handles_negative_and_wrapped(self):
+        self.assertEqual(ns.separation(10.0, 370.0), 0.0)
+        self.assertEqual(ns.separation(-10.0, 350.0), 0.0)
+        self.assertEqual(ns.separation(-90.0, 90.0), 180.0)
+        self.assertEqual(ns.separation(359.5, 0.5), 1.0)
+        self.assertEqual(ns.separation(0.0, 181.0), 179.0)
+        for a in (-720.0, -5.5, 0.0, 123.4, 400.0):
+            for b in (-360.0, 17.25, 200.0, 719.9):
+                self.assertTrue(0.0 <= ns.separation(a, b) <= 180.0)
+
+    def test_every_aspect_type_is_reachable(self):
+        found = {a["aspect"] for a in ns.detect_aspects(ASPECT_REF, 1.0)}
+        expected = {t["name"] for t in ns.ASPECT_TYPES}
+        self.assertEqual(found, expected)
+
+    def test_exact_aspect_has_full_strength(self):
+        aspects = ns.detect_aspects(ASPECT_REF, 1.0)
+        exact = [a for a in aspects if a["orb"] == 0.0]
+        self.assertTrue(exact)
+        for a in exact:
+            self.assertEqual(a["strength"], 1.0)
+
+    def test_strength_falls_off_with_orb(self):
+        aspects = {(a["a"], a["b"]): a for a in ns.detect_aspects(ASPECT_REF)}
+        # mc is 2.5 deg from a conjunction with sun (orb limit 8).
+        conj = aspects[("sun", "mc")]
+        self.assertEqual(conj["aspect"], "conjunction")
+        self.assertTrue(math.isclose(conj["strength"], 1.0 - 2.5 / 8.0))
+
+    def test_pairs_walked_in_canonical_order(self):
+        aspects = ns.detect_aspects(ASPECT_REF)
+        order = [k for k in ns.LONGITUDE_KEYS if k in ASPECT_REF]
+        seen = [(order.index(a["a"]), order.index(a["b"])) for a in aspects]
+        self.assertEqual(seen, sorted(seen))
+        for i, j in seen:
+            self.assertLess(i, j)
+
+    def test_orb_scale_is_clamped(self):
+        lo, hi = ns.ORB_SCALE_LIMITS
+        wide = ns.detect_aspects(ASPECT_REF, 1e9)
+        self.assertEqual(wide, ns.detect_aspects(ASPECT_REF, hi))
+        narrow = ns.detect_aspects(ASPECT_REF, -5.0)
+        self.assertEqual(narrow, ns.detect_aspects(ASPECT_REF, lo))
+
+    def test_wider_orb_never_loses_an_aspect(self):
+        pairs = lambda sc: {(a["a"], a["b"]) for a in ns.detect_aspects(ASPECT_REF, sc)}
+        self.assertTrue(pairs(1.0) <= pairs(2.0) <= pairs(3.0))
+
+    def test_weights_bounded_and_unaspected_at_floor(self):
+        aspects = ns.detect_aspects(ASPECT_REF)
+        w = ns.aspect_weights(ASPECT_REF, aspects)
+        self.assertEqual(set(w), {k for k in ns.LONGITUDE_KEYS if k in ASPECT_REF})
+        for v in w.values():
+            self.assertTrue(0.35 <= v <= 1.0)
+        self.assertTrue(math.isclose(max(w.values()), 1.0))
+        # A body with no aspects at all sits exactly at the floor.
+        lonely = {"sun": 0.0, "moon": 7.0, "asc": 200.0, "mc": 111.3}
+        la = ns.detect_aspects(lonely)
+        lw = ns.aspect_weights(lonely, la)
+        unaspected = {a for k in lonely for a in [k]} - {
+            x for a in la for x in (a["a"], a["b"])}
+        for k in unaspected:
+            self.assertEqual(lw[k], 0.35)
+
+    def test_voice_plan_respects_clamps_and_budget(self):
+        aspects = ns.detect_aspects(ASPECT_REF)
+        keys = [k for k in ns.LONGITUDE_KEYS if k in ASPECT_REF]
+        bed = ns.bedrock_frequencies(ASPECT_REF)
+        plan = ns.aspect_voice_plan(bed, keys, aspects)
+        self.assertEqual(len(plan), len(aspects))
+        for v in plan:
+            self.assertTrue(ns.FREQ_MIN_HZ <= v["root_hz"] <= ns.FREQ_MAX_HZ)
+            self.assertTrue(ns.FREQ_MIN_HZ <= v["partner_hz"] <= ns.FREQ_MAX_HZ)
+            self.assertTrue(0.0 <= v["beat_hz"] <= ns.ASPECT_BEAT_MAX_HZ)
+            self.assertGreaterEqual(v["gain"], 0.0)
+        # Total gain cannot exceed the budget however many aspects there are.
+        self.assertLessEqual(sum(v["gain"] for v in plan), ns.ASPECT_GAIN_TOTAL + 1e-12)
+
+    def test_voice_plan_interval_is_the_aspect(self):
+        aspects = ns.detect_aspects(ASPECT_REF)
+        keys = [k for k in ns.LONGITUDE_KEYS if k in ASPECT_REF]
+        bed = ns.bedrock_frequencies(ASPECT_REF)
+        for v, a in zip(ns.aspect_voice_plan(bed, keys, aspects), aspects, strict=True):
+            if v["partner_hz"] in (ns.FREQ_MIN_HZ, ns.FREQ_MAX_HZ):
+                continue  # clamped, ratio no longer meaningful
+            self.assertTrue(math.isclose(
+                v["partner_hz"] / v["root_hz"], ns.aspect_ratio(a["angle"]),
+                rel_tol=1e-12))
+
+    def test_bedrock_untouched_by_aspect_layer(self):
+        """The aspect layer reads bedrock and must never write it — the same
+        invariant the sentinel overlay is held to."""
+        bed = ns.bedrock_frequencies(ASPECT_REF)
+        before = list(bed)
+        keys = [k for k in ns.LONGITUDE_KEYS if k in ASPECT_REF]
+        aspects = ns.detect_aspects(ASPECT_REF)
+        ns.aspect_voice_plan(bed, keys, aspects)
+        ns.aspect_weights(ASPECT_REF, aspects)
+        self.assertEqual(list(bed), before)
+
+    def test_chartless_input_rejected(self):
+        with self.assertRaises(ns.ChartValidationError):
+            ns.detect_aspects({"sun": 1.0})
+
+
+@unittest.skipUnless(NODE, "node not available")
+class TestAspectParity(unittest.TestCase):
+    """The aspect layer must agree across substrates as tightly as the seed
+    does. detect_aspects and aspect_weights are arithmetic-only, so they are
+    held to exact equality; anything through pow() gets the same tolerance
+    already applied to bedrock derivation."""
+
+    @classmethod
+    def setUpClass(cls):
+        result = subprocess.run(
+            [NODE, str(ROOT / "parity_check.cjs")],
+            capture_output=True, text=True, cwd=str(ROOT))
+        assert result.returncode == 0, result.stderr
+        cls.js = json.loads(result.stdout)
+
+    def test_detect_aspects_bit_exact(self):
+        for key, scale in (("aspects_s1", 1.0), ("aspects_s25", 2.5)):
+            py = ns.detect_aspects(ASPECT_REF, scale)
+            self.assertEqual(len(self.js[key]), len(py), key)
+            for j, p in zip(self.js[key], py, strict=True):
+                self.assertEqual(j, p, key)
+
+    def test_weights_bit_exact(self):
+        py = ns.aspect_weights(ASPECT_REF, ns.detect_aspects(ASPECT_REF, 1.0))
+        self.assertEqual(self.js["aspect_weights"], py)
+
+    def test_cents_bit_exact(self):
+        py = [ns.aspect_cents(t["angle"]) for t in ns.ASPECT_TYPES]
+        self.assertEqual(self.js["aspect_cents"], py)
+
+    def test_separation_bit_exact_including_negatives(self):
+        pairs = [(10, 370), (-10, 350), (-90, 90), (359.5, 0.5), (0, 180), (0, 181)]
+        py = [ns.separation(a, b) for a, b in pairs]
+        self.assertEqual(self.js["separations"], py)
+
+    def test_ratios_within_tolerance(self):
+        py = [ns.aspect_ratio(t["angle"]) for t in ns.ASPECT_TYPES]
+        for j, p in zip(self.js["aspect_ratios"], py, strict=True):
+            self.assertTrue(math.isclose(j, p, abs_tol=1e-12))
+
+    def test_voice_plan_parity(self):
+        REF = [190.5, 148.75, 252.625, 366.375]
+        py = ns.aspect_voice_plan(REF, ["sun", "moon", "asc", "mc"],
+                                  ns.detect_aspects(ns.TEST_CHART, 1.0))
+        js = self.js["aspect_plan_ref"]
+        self.assertEqual(len(js), len(py))
+        for j, p in zip(js, py, strict=True):
+            # Arithmetic-only fields: exact.
+            for field in ("a", "b", "aspect", "harmony", "cents", "beat_hz",
+                          "gain", "root_hz"):
+                self.assertEqual(j[field], p[field], field)
+            # partner_hz goes through pow(): tolerance.
+            self.assertTrue(math.isclose(j["partner_hz"], p["partner_hz"],
+                                         abs_tol=1e-9))
+
+    def test_voice_plan_full_chain_within_tolerance(self):
+        keys = [k for k in ns.LONGITUDE_KEYS if k in ASPECT_REF]
+        py = ns.aspect_voice_plan(ns.bedrock_frequencies(ASPECT_REF), keys,
+                                  ns.detect_aspects(ASPECT_REF, 1.0))
+        for j, p in zip(self.js["aspect_plan_full"], py, strict=True):
+            self.assertEqual(j["aspect"], p["aspect"])
+            self.assertTrue(math.isclose(j["root_hz"], p["root_hz"], abs_tol=1e-9))
+            self.assertTrue(math.isclose(j["partner_hz"], p["partner_hz"], abs_tol=1e-9))
