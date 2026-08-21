@@ -15,6 +15,7 @@ toggleable **Sentinel Mode** overlay, plus a headless CLI controller.
 | File | Role |
 |---|---|
 | `natal_seed.py` / `natal_seed.js` | Shared deterministic core: canonical chart serialization, intention sanitization, SHA-256/64-bit seed derivation, mulberry32 PRNG, safety clamps, trace privacy guard. **Bit-exact across Python and JS.** |
+| `resonarium_console.html` | **Unified console.** The whole instrument in one page: the seed derivation chain step by step, the natal bedrock table, the sentinel overlay, and five linked views (Field, Lattice, Cymatic, Spectrum, Sigil). Every parameter carries an info mark opening its formula, domain, and rationale. Self-contained; needs only `natal_seed.js` beside it. |
 | `resonarium-enhanced.html` | Browser app: natal bedrock oscillators + binaural pair + canvas field, with the Biosentinel Sentinel Mode panel (`n`, `k`, `perturb`, `spread`). Open next to `natal_seed.js`. |
 | `resonarium_biosentinel_cli.py` | Headless controller: derive seeds, set params, export/import state, print the Temporal Trace. |
 | `state_schema.json` | Versioned shared state schema (`1.0.0`). |
@@ -28,7 +29,9 @@ toggleable **Sentinel Mode** overlay, plus a headless CLI controller.
 cd resonarium
 
 # Browser: serve locally (or just open the file — it also works on file://)
-python3 -m http.server 8000   # then open http://localhost:8000/resonarium-enhanced.html
+python3 -m http.server 8000
+# then open http://localhost:8000/resonarium_console.html   (unified console)
+#            http://localhost:8000/resonarium-enhanced.html (original single view)
 
 # CLI: derive a seed
 echo '{"sun":142.73,"moon":78.41,"asc":215.92,"mc":312.44,"aspects_sum":1247.8}' > /tmp/chart.json
@@ -45,8 +48,10 @@ python3 resonarium_biosentinel_cli.py verify
 python3 -m unittest discover -s tests -v
 ```
 
-In the browser: accept the notice → *Use demo chart* (or paste your own
-chart JSON) → *Anchor natal seed* → *Start audio* → enable *Sentinel Mode*.
+In the browser: accept the notice → *Demo chart* (or paste your own chart
+JSON) → *Anchor natal seed* → *Start audio* → *Enable sentinel*. Keys `1`–`5`
+switch views, `space` toggles audio, `s` toggles the sentinel, `esc` panics.
+Every ⓘ mark opens the formula behind the value next to it.
 
 ## Design invariants
 
