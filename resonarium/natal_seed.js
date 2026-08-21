@@ -444,6 +444,181 @@
     return out;
   }
 
+  // --- Aspect geometry as musical interval --------------------------------
+  // bedrockFrequencies maps 180 degrees of arc onto exactly one octave
+  // (110 * 2^(lon/180)), which means an aspect angle IS an interval and needs
+  // no separate tuning table: 1 degree = 1200/180 = 20/3 cents. Squares land
+  // on 600 cents (tritone), trines on 800 (minor sixth), sextiles on 400
+  // (major third), oppositions on 1200 (octave).
+  //
+  // Note the consequence, which is an authorship choice rather than a bug: the
+  // opposition — read as a hard aspect — maps to the most consonant interval
+  // there is. Musical tension therefore comes from `harmony` and orb-driven
+  // beating, NOT from the raw interval. See aspectVoicePlan.
+  //
+  // Mirrors natal_seed.py exactly. detectAspects and aspectWeights use only
+  // comparison and arithmetic, so they are bit-exact across substrates;
+  // aspectRatio goes through pow() and carries the same last-bit caveat as
+  // bedrockFrequencies.
+
+  const CENTS_PER_DEGREE = 1200.0 / 180.0;
+
+  // angle, default orb in degrees, and harmonic class. Order is canonical:
+  // where two aspects are both in orb, the earlier entry wins the tie.
+  const ASPECT_TYPES = [
+    { name: "conjunction",    angle: 0.0,   orb: 8.0, harmony: "neutral" },
+    { name: "opposition",     angle: 180.0, orb: 8.0, harmony: "hard" },
+    { name: "trine",          angle: 120.0, orb: 6.0, harmony: "soft" },
+    { name: "square",         angle: 90.0,  orb: 6.0, harmony: "hard" },
+    { name: "sextile",        angle: 60.0,  orb: 4.0, harmony: "soft" },
+    { name: "quincunx",       angle: 150.0, orb: 3.0, harmony: "hard" },
+    { name: "semisextile",    angle: 30.0,  orb: 2.0, harmony: "soft" },
+    { name: "semisquare",     angle: 45.0,  orb: 2.0, harmony: "hard" },
+    { name: "sesquiquadrate", angle: 135.0, orb: 2.0, harmony: "hard" },
+  ];
+
+  const ORB_SCALE_LIMITS = [0.1, 3.0];
+  const ASPECT_BEAT_MAX_HZ = 12.0;
+  const ASPECT_GAIN_TOTAL = 0.10;
+
+  /** Interval size in cents for an aspect angle. Arithmetic only. */
+  function aspectCents(angle) { return Number(angle) * CENTS_PER_DEGREE; }
+
+  /** Frequency ratio for an aspect angle: 2^(angle/180). */
+  function aspectRatio(angle) { return Math.pow(2.0, Number(angle) / 180.0); }
+
+  // Python's % on floats is already non-negative for a positive modulus;
+  // JavaScript's keeps the sign of the dividend. This adds 360 ONLY when the
+  // remainder is negative, which is precisely Python's rule.
+  //
+  // It deliberately does NOT use the ((x % 360) + 360) % 360 form that
+  // bedrockFrequencies uses above. That form perturbs values already in range:
+  // 78.41 becomes 438.41 and back to 78.41000000000003, because the round trip
+  // is not exact in binary floating point. Bedrock can absorb that — it goes
+  // through pow() and is compared with tolerance anyway — but detectAspects is
+  // arithmetic-only and is held to bit-exact parity, so a last-bit shift here
+  // propagates into orb, strength and beat_hz and breaks it. Found by
+  // TestAspectParity.test_voice_plan_parity, which is why that test compares
+  // beat_hz exactly rather than with a tolerance.
+  function norm360(x) {
+    const r = Number(x) % 360;
+    return r < 0 ? r + 360 : r;
+  }
+
+  /** Shortest arc between two longitudes, in [0, 180]. */
+  function separation(lonA, lonB) {
+    const d = norm360(Number(lonA) - Number(lonB));
+    return d > 180.0 ? 360.0 - d : d;
+  }
+
+  /**
+   * Aspects between longitude-bearing bodies present in `chart`.
+   *
+   * Pairs are walked in CANONICAL order (LONGITUDE_KEYS, i < j) so the output
+   * sequence is deterministic and identical in both implementations. Where two
+   * aspect types are simultaneously in orb — possible only at high orbScale —
+   * the tighter one wins, and an exact tie goes to the earlier ASPECT_TYPES
+   * entry. Uses no transcendentals, so it is bit-exact across substrates.
+   */
+  function detectAspects(chart, orbScale) {
+    validateChart(chart);
+    const scale = clamp(orbScale === undefined ? 1.0 : Number(orbScale),
+                        ORB_SCALE_LIMITS[0], ORB_SCALE_LIMITS[1]);
+    const present = LONGITUDE_KEYS.filter(
+      (k) => k in chart && typeof chart[k] === "number");
+    const out = [];
+    for (let i = 0; i < present.length; i++) {
+      for (let j = i + 1; j < present.length; j++) {
+        const a = present[i], b = present[j];
+        const sep = separation(norm360(chart[a]), norm360(chart[b]));
+        let best = null;
+        for (const spec of ASPECT_TYPES) {
+          const limit = spec.orb * scale;
+          const orb = Math.abs(sep - spec.angle);
+          if (orb <= limit && (best === null || orb < best.orb)) {
+            best = {
+              a: a, b: b,
+              aspect: spec.name,
+              angle: spec.angle,
+              harmony: spec.harmony,
+              separation: sep,
+              orb: orb,
+              strength: limit > 0.0 ? 1.0 - orb / limit : 1.0,
+            };
+          }
+        }
+        if (best !== null) out.push(best);
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Per-body gain weights in [0.35, 1.0] from summed aspect strength.
+   *
+   * A heavily aspected body leads; an unaspected one sits at the floor rather
+   * than vanishing. This is what turns the equal-gain bedrock cluster into
+   * something with a foreground. Arithmetic only.
+   */
+  function aspectWeights(chart, aspects) {
+    const present = LONGITUDE_KEYS.filter(
+      (k) => k in chart && typeof chart[k] === "number");
+    const totals = {};
+    for (const k of present) totals[k] = 0.0;
+    for (const asp of aspects) {
+      if (asp.a in totals) totals[asp.a] += asp.strength;
+      if (asp.b in totals) totals[asp.b] += asp.strength;
+    }
+    let peak = 0.0;
+    for (const k of present) peak = Math.max(peak, totals[k]);
+    const out = {};
+    if (peak <= 0.0) {
+      for (const k of present) out[k] = 1.0;
+      return out;
+    }
+    for (const k of present) out[k] = 0.35 + 0.65 * (totals[k] / peak);
+    return out;
+  }
+
+  /**
+   * One interval voice per aspect, layered over the bedrock.
+   *
+   * The partner tone is the root times the aspect's own ratio, so the interval
+   * is the exact aspect angle rather than whatever the two bodies' absolute
+   * longitudes happen to give (those are equivalent up to octave inversion).
+   *
+   * Beat rate is the orb: an exact aspect is pure and a wide one shimmers.
+   * That is the movement in the piece, and it comes from the chart rather than
+   * from a clock. `harmony` selects the timbre, which is where tension has to
+   * come from, since the opposition's raw interval is an octave.
+   *
+   * Takes `bedrock` explicitly — like ghostPlacement — so tests can isolate
+   * the plan from pow()-induced last-bit noise in bedrock derivation.
+   */
+  function aspectVoicePlan(bedrock, keys, aspects, gainTotal) {
+    const total = gainTotal === undefined ? ASPECT_GAIN_TOTAL : Number(gainTotal);
+    const index = {};
+    keys.forEach((k, i) => { index[k] = i; });
+    const per = total / Math.max(aspects.length, 1);
+    const out = [];
+    for (const asp of aspects) {
+      const i = index[asp.a];
+      if (i === undefined || i >= bedrock.length) continue;
+      const root = clampFrequency(bedrock[i]);
+      out.push({
+        a: asp.a, b: asp.b,
+        aspect: asp.aspect,
+        harmony: asp.harmony,
+        root_hz: root,
+        partner_hz: clampFrequency(root * aspectRatio(asp.angle)),
+        cents: aspectCents(asp.angle),
+        beat_hz: clamp(asp.orb, 0.0, ASPECT_BEAT_MAX_HZ),
+        gain: per * asp.strength,
+      });
+    }
+    return out;
+  }
+
   // --- Shared cross-platform test vector ---
   const TEST_CHART = Object.freeze({
     sun: 142.73, moon: 78.41, asc: 215.92, mc: 312.44, aspects_sum: 1247.8,
@@ -481,6 +656,17 @@
     factorComplexity,
     sturmianDefect,
     ghostPlacement,
+    CENTS_PER_DEGREE,
+    ASPECT_TYPES,
+    ORB_SCALE_LIMITS,
+    ASPECT_BEAT_MAX_HZ,
+    ASPECT_GAIN_TOTAL,
+    aspectCents,
+    aspectRatio,
+    separation,
+    detectAspects,
+    aspectWeights,
+    aspectVoicePlan,
     makeTraceEntry,
     redactState,
     TEST_CHART,

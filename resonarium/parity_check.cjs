@@ -59,6 +59,19 @@ const offSentinel = NS.clampSentinelParams({ active: false });
 const offBaseline = bed.map((f, i) =>
   NS.modulateFrequency(f, i, offSentinel, rand2));
 
+// Aspect reference chart: constructed so every one of the nine aspect types is
+// hit, most of them exactly (orb 0), plus two with a deliberate orb so the
+// strength arithmetic is exercised rather than only its endpoint. Duplicated
+// verbatim in tests/test_biosentinel.py, the same way REF_BEDROCK is.
+const ASPECT_REF = {
+  sun: 10.0, pluto: 10.0, neptune: 40.0, jupiter: 55.0, moon: 70.0,
+  mercury: 100.0, venus: 130.0, saturn: 145.0, uranus: 160.0, mars: 190.0,
+  asc: 283.0, mc: 12.5,
+};
+const aspects1 = NS.detectAspects(ASPECT_REF, 1.0);
+const aspects25 = NS.detectAspects(ASPECT_REF, 2.5);
+const aspectKeys = NS.LONGITUDE_KEYS.filter((k) => k in ASPECT_REF);
+
 process.stdout.write(JSON.stringify({
   canonical: NS.canonicalizeChart(chart),
   seed_hex: NS.seedToHex(seed),
@@ -82,4 +95,20 @@ process.stdout.write(JSON.stringify({
   placement_s1: Array.from(NS.ghostPlacement(bed, 12, 1.0)),
   placement_s10: Array.from(NS.ghostPlacement(bed, 16, 10.0)),
   clamped: NS.clampSentinelParams({ n: 9999, k: -5, perturb: 1e9, spread: 100 }),
+  // Aspect layer. detectAspects/aspectWeights are arithmetic-only and must be
+  // EXACT; aspectRatio goes through pow(), so the voice plan carries the same
+  // tolerance caveat as bedrock. Reference bedrock isolates the plan from that.
+  aspects_s1: aspects1,
+  aspects_s25: aspects25,
+  aspect_weights: NS.aspectWeights(ASPECT_REF, aspects1),
+  aspect_cents: NS.ASPECT_TYPES.map((t) => NS.aspectCents(t.angle)),
+  aspect_ratios: NS.ASPECT_TYPES.map((t) => NS.aspectRatio(t.angle)),
+  // Negative and wrapped longitudes: Python's % is non-negative for a positive
+  // modulus and JavaScript's is not, so this is where the two would diverge.
+  separations: [[10, 370], [-10, 350], [-90, 90], [359.5, 0.5], [0, 180], [0, 181]]
+    .map((pr) => NS.separation(pr[0], pr[1])),
+  aspect_plan_ref: NS.aspectVoicePlan(REF_BEDROCK, ["sun", "moon", "asc", "mc"],
+    NS.detectAspects(NS.TEST_CHART, 1.0)),
+  aspect_plan_full: NS.aspectVoicePlan(
+    NS.bedrockFrequencies(ASPECT_REF), aspectKeys, aspects1),
 }) + "\n");
