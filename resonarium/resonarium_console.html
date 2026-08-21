@@ -1,0 +1,2779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Hard no-network guarantee. Only same-directory scripts (natal_seed.js)
+     and inline code run. Nothing is fetched, ever. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Resonarium Console</title>
+<style>
+  :root {
+    --bg:#08080f; --bg2:#0b0b16; --panel:#12121f; --panel2:#171728;
+    --edge:#25253f; --edge2:#32325a;
+    --ink:#dcdcf0; --dim:#8c8cb2; --faint:#5c5c7e;
+    --accent:#7ec8e3; --accent-dim:#3d6d80;
+    --gold:#d7b97a; --gold-dim:#7a6a45;
+    --ok:#7fd6a4; --warn:#e3b27e; --bad:#e38a8a;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing:border-box; }
+  html,body { height:100%; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font:13px/1.5 var(--ui); overflow:hidden;
+  }
+  button, input, select, textarea { font-family:inherit; }
+
+  /* ---------------------------------------------------------- chrome */
+  #shell { display:flex; flex-direction:column; height:100vh; }
+
+  header {
+    display:flex; align-items:center; gap:14px;
+    padding:0 14px; height:52px; flex:0 0 auto;
+    background:linear-gradient(180deg,#101020,#0a0a14);
+    border-bottom:1px solid var(--edge);
+  }
+  #sigil-chip {
+    width:36px; height:36px; border-radius:6px; flex:0 0 auto;
+    border:1px solid var(--edge2); background:#06060d; cursor:pointer;
+    display:block;
+  }
+  #sigil-chip:hover { border-color:var(--accent); }
+  .brand { display:flex; flex-direction:column; gap:1px; min-width:0; }
+  .brand b {
+    font-size:14px; font-weight:600; letter-spacing:.02em; color:var(--ink);
+  }
+  .brand span {
+    font:10px/1.3 var(--mono); color:var(--faint);
+    letter-spacing:.06em; text-transform:uppercase;
+  }
+  #seed-chip {
+    font:12px/1 var(--mono); color:var(--gold); letter-spacing:.08em;
+    padding:6px 10px; border:1px solid var(--gold-dim); border-radius:5px;
+    background:#15120a; cursor:pointer; white-space:nowrap;
+  }
+  #seed-chip:hover { border-color:var(--gold); }
+  #seed-chip.empty { color:var(--faint); border-color:var(--edge); background:transparent; }
+  .spacer { flex:1 1 auto; }
+
+  .badge {
+    display:inline-flex; align-items:center; gap:5px;
+    font:10px/1 var(--mono); text-transform:uppercase; letter-spacing:.08em;
+    padding:5px 9px; border-radius:20px;
+    border:1px solid var(--edge); color:var(--faint); white-space:nowrap;
+  }
+  .badge::before {
+    content:""; width:5px; height:5px; border-radius:50%;
+    background:currentColor; opacity:.55;
+  }
+  .badge.on { border-color:var(--ok); color:var(--ok); }
+  .badge.on::before { opacity:1; box-shadow:0 0 6px currentColor; }
+  .badge.hot { border-color:var(--gold); color:var(--gold); }
+  .badge.hot::before { opacity:1; box-shadow:0 0 6px currentColor; }
+
+  /* ------------------------------------------------------ main layout */
+  #body { display:flex; flex:1 1 auto; min-height:0; }
+  .rail {
+    width:310px; flex:0 0 auto; overflow-y:auto; overflow-x:hidden;
+    background:var(--bg2); padding:10px;
+  }
+  .rail.left { border-right:1px solid var(--edge); }
+  .rail.right { border-left:1px solid var(--edge); width:320px; }
+  #stage-col { flex:1 1 auto; display:flex; flex-direction:column; min-width:0; }
+
+  .rail::-webkit-scrollbar, #trace-list::-webkit-scrollbar,
+  .codex-body::-webkit-scrollbar, .tbl-wrap::-webkit-scrollbar { width:9px; }
+  .rail::-webkit-scrollbar-thumb, #trace-list::-webkit-scrollbar-thumb,
+  .codex-body::-webkit-scrollbar-thumb, .tbl-wrap::-webkit-scrollbar-thumb {
+    background:var(--edge); border-radius:5px;
+  }
+  .rail::-webkit-scrollbar-track { background:transparent; }
+
+  /* ----------------------------------------------------------- panels */
+  .panel {
+    background:var(--panel); border:1px solid var(--edge);
+    border-radius:7px; margin-bottom:9px; overflow:hidden;
+  }
+  .panel > h2 {
+    margin:0; padding:8px 11px;
+    font:10px/1.2 var(--mono); font-weight:600;
+    text-transform:uppercase; letter-spacing:.11em; color:var(--accent);
+    background:#0e0e1a; border-bottom:1px solid var(--edge);
+    display:flex; align-items:center; gap:7px;
+  }
+  .panel > h2 .idx {
+    color:var(--faint); font-weight:400; letter-spacing:.04em;
+  }
+  .panel > h2 .h2-right { margin-left:auto; color:var(--faint); font-weight:400; }
+  .pbody { padding:10px 11px; }
+  .pbody.tight { padding:7px 9px; }
+
+  /* ------------------------------------------------------------ forms */
+  label.fld {
+    display:block; margin:9px 0 3px;
+    font:10px/1.3 var(--mono); text-transform:uppercase;
+    letter-spacing:.08em; color:var(--dim);
+  }
+  label.fld:first-child { margin-top:0; }
+  input[type=text], textarea, select {
+    width:100%; background:#07070f; color:var(--ink);
+    border:1px solid var(--edge); border-radius:4px; padding:6px 8px;
+    font:11.5px/1.45 var(--mono);
+  }
+  input[type=text]:focus, textarea:focus, select:focus {
+    outline:none; border-color:var(--accent-dim);
+    box-shadow:0 0 0 2px rgba(126,200,227,.09);
+  }
+  textarea { resize:vertical; min-height:56px; }
+
+  button {
+    background:#1a1a30; color:var(--ink);
+    border:1px solid var(--edge); border-radius:5px;
+    padding:6px 12px; cursor:pointer; font-size:12px;
+    transition:border-color .12s, color .12s, background .12s;
+  }
+  button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+  button:disabled { opacity:.38; cursor:not-allowed; }
+  button.primary { background:#153044; border-color:var(--accent-dim); color:var(--accent); }
+  button.primary:hover:not(:disabled) { background:#1a3c56; border-color:var(--accent); }
+  button.wide { width:100%; }
+  button.sm { padding:4px 9px; font-size:11px; }
+  button.danger:hover:not(:disabled) { border-color:var(--bad); color:var(--bad); }
+  .row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .row.mt { margin-top:9px; }
+  .row > .grow { flex:1 1 auto; }
+
+  /* ------------------------------------------------------ slider unit */
+  .knob { margin:11px 0; }
+  .knob:first-child { margin-top:2px; }
+  .knob-head {
+    display:flex; align-items:baseline; gap:6px; margin-bottom:4px;
+  }
+  .knob-head .kname {
+    font:10px/1.2 var(--mono); text-transform:uppercase;
+    letter-spacing:.08em; color:var(--dim);
+  }
+  .knob-head .kval {
+    margin-left:auto; font:12px/1.2 var(--mono);
+    color:var(--gold); font-variant-numeric:tabular-nums;
+  }
+  .knob-head .kunit { font-size:9px; color:var(--faint); }
+  input[type=range] {
+    width:100%; height:16px; -webkit-appearance:none; appearance:none;
+    background:transparent; cursor:pointer; display:block;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height:3px; background:var(--edge2); border-radius:2px;
+  }
+  input[type=range]::-moz-range-track {
+    height:3px; background:var(--edge2); border-radius:2px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none; appearance:none;
+    width:12px; height:12px; border-radius:50%;
+    background:var(--accent); margin-top:-4.5px;
+    border:2px solid #0b0b16; box-shadow:0 0 5px rgba(126,200,227,.5);
+  }
+  input[type=range]::-moz-range-thumb {
+    width:12px; height:12px; border-radius:50%; border:2px solid #0b0b16;
+    background:var(--accent); box-shadow:0 0 5px rgba(126,200,227,.5);
+  }
+  .knob-scale {
+    display:flex; justify-content:space-between;
+    font:9px/1 var(--mono); color:var(--faint); margin-top:1px;
+  }
+
+  /* ------------------------------------------------------- info marks */
+  .im {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:13px; height:13px; border-radius:50%; flex:0 0 auto;
+    border:1px solid var(--edge2); background:transparent;
+    color:var(--faint); font:8px/1 var(--ui); font-style:normal;
+    cursor:help; padding:0; vertical-align:middle; margin-left:1px;
+    transition:border-color .12s, color .12s;
+  }
+  .im::before { content:"i"; font-weight:700; }
+  .im:hover, .im.active {
+    border-color:var(--accent); color:var(--accent);
+    box-shadow:0 0 7px rgba(126,200,227,.28);
+  }
+  .im:focus-visible { outline:1px solid var(--accent); outline-offset:2px; }
+
+  /* --------------------------------------------------------- readouts */
+  .readout {
+    display:flex; align-items:baseline; gap:7px;
+    padding:3.5px 0; border-bottom:1px solid #1a1a2c;
+    font:11px/1.4 var(--mono);
+  }
+  .readout:last-child { border-bottom:none; }
+  .readout .rk { color:var(--dim); flex:0 0 auto; }
+  .readout .rv {
+    margin-left:auto; color:var(--ink); text-align:right;
+    font-variant-numeric:tabular-nums; word-break:break-all;
+  }
+  .readout .rv.gold { color:var(--gold); }
+  .readout .rv.ok { color:var(--ok); }
+  .readout .rv.dim { color:var(--faint); }
+
+  /* ------------------------------------------------------ chain steps */
+  .chain { position:relative; padding-left:17px; }
+  .chain::before {
+    content:""; position:absolute; left:5px; top:6px; bottom:6px;
+    width:1px; background:linear-gradient(180deg,var(--accent-dim),var(--gold-dim));
+  }
+  .step { position:relative; padding:6px 0; }
+  .step::before {
+    content:""; position:absolute; left:-15px; top:11px;
+    width:7px; height:7px; border-radius:50%;
+    background:var(--bg2); border:1.5px solid var(--accent-dim);
+  }
+  .step.live::before { border-color:var(--gold); background:var(--gold); box-shadow:0 0 6px var(--gold); }
+  .step .sh {
+    display:flex; align-items:center; gap:5px;
+    font:9px/1.2 var(--mono); text-transform:uppercase;
+    letter-spacing:.09em; color:var(--faint); margin-bottom:3px;
+  }
+  .step .sv {
+    font:10.5px/1.5 var(--mono); color:var(--ink);
+    background:#07070f; border:1px solid var(--edge);
+    border-radius:4px; padding:5px 7px;
+    word-break:break-all; max-height:64px; overflow-y:auto;
+  }
+  .step .sv.gold { color:var(--gold); }
+  .step .sv.empty { color:var(--faint); }
+
+  /* ----------------------------------------------------------- stage */
+  #stage-bar {
+    display:flex; align-items:center; gap:2px; padding:0 10px;
+    height:38px; flex:0 0 auto;
+    background:#0a0a14; border-bottom:1px solid var(--edge);
+    overflow-x:auto; overflow-y:hidden;
+  }
+  .vtab {
+    background:transparent; border:none; border-bottom:2px solid transparent;
+    border-radius:0; color:var(--faint); padding:9px 11px;
+    font:10px/1 var(--mono); text-transform:uppercase; letter-spacing:.1em;
+    white-space:nowrap; height:38px;
+  }
+  .vtab:hover:not(:disabled) { color:var(--ink); background:rgba(126,200,227,.05); }
+  .vtab.sel {
+    color:var(--accent); border-bottom-color:var(--accent);
+    background:rgba(126,200,227,.06);
+  }
+  .vtab .vk {
+    display:inline-block; margin-left:6px; opacity:.5; font-size:9px;
+  }
+  #stage-wrap { flex:1 1 auto; position:relative; min-height:0; background:#05050b; }
+  #stage { display:block; width:100%; height:100%; }
+  #stage.grab { cursor:grab; }
+  #stage.grab:active { cursor:grabbing; }
+  #stage-note {
+    position:absolute; left:12px; bottom:10px; right:12px;
+    font:10px/1.5 var(--mono); color:var(--faint);
+    pointer-events:none; text-shadow:0 1px 3px #000;
+  }
+  #stage-hud {
+    position:absolute; right:12px; top:10px;
+    font:10px/1.6 var(--mono); color:var(--dim); text-align:right;
+    pointer-events:none; text-shadow:0 1px 3px #000;
+  }
+  #stage-hud b { color:var(--gold); font-weight:500; }
+
+  /* -------------------------------------------------------- transport */
+  #transport {
+    display:flex; align-items:center; gap:9px; padding:0 11px;
+    height:44px; flex:0 0 auto;
+    background:#0a0a14; border-top:1px solid var(--edge);
+  }
+  #transport .vol { display:flex; align-items:center; gap:7px; width:180px; }
+  #transport .vol input[type=range] { flex:1 1 auto; }
+  .tstat {
+    font:10px/1.4 var(--mono); color:var(--faint);
+    margin-left:auto; text-align:right; white-space:nowrap;
+  }
+
+  /* ----------------------------------------------------------- tables */
+  .tbl-wrap { max-height:210px; overflow-y:auto; }
+  table.eng { width:100%; border-collapse:collapse; font:10.5px/1.4 var(--mono); }
+  table.eng th {
+    position:sticky; top:0; background:#0e0e1a; z-index:1;
+    text-align:left; color:var(--faint); font-weight:500;
+    padding:4px 6px; border-bottom:1px solid var(--edge);
+    text-transform:uppercase; letter-spacing:.06em; font-size:9px;
+  }
+  table.eng td {
+    padding:3px 6px; border-bottom:1px solid #171728;
+    color:var(--ink); font-variant-numeric:tabular-nums;
+  }
+  table.eng td.k { color:var(--dim); }
+  table.eng td.n { text-align:right; color:var(--gold); }
+  table.eng td.s { text-align:center; color:var(--accent); }
+  table.eng tr:hover td { background:rgba(126,200,227,.05); }
+
+  /* ------------------------------------------------------------ trace */
+  #trace-list {
+    max-height:190px; overflow-y:auto; margin:0; padding:0; list-style:none;
+    font:10px/1.55 var(--mono);
+  }
+  #trace-list li {
+    padding:3px 0; border-bottom:1px solid #171728;
+    color:var(--faint); word-break:break-all;
+  }
+  #trace-list li b { color:var(--accent); font-weight:500; }
+  #trace-list li i { color:var(--dim); font-style:normal; }
+
+  .note {
+    font:10px/1.5 var(--mono); color:var(--faint); margin-top:7px;
+  }
+  .status { font:10.5px/1.45 var(--mono); color:var(--dim); margin-top:6px; min-height:14px; }
+  .status.ok { color:var(--ok); }
+  .status.warn { color:var(--warn); }
+  .status.bad { color:var(--bad); }
+  .chk { display:flex; align-items:center; gap:7px; margin-top:8px; font-size:11.5px; color:var(--dim); }
+  .chk input { accent-color:var(--accent); }
+  hr.sep { border:none; border-top:1px solid var(--edge); margin:10px 0; }
+
+  /* ----------------------------------------------------- codex popover */
+  #codex {
+    position:fixed; z-index:60; width:340px; max-width:calc(100vw - 24px);
+    background:linear-gradient(180deg,#181828,#12121f);
+    border:1px solid var(--edge2); border-radius:8px;
+    box-shadow:0 14px 44px rgba(0,0,0,.72), 0 0 0 1px rgba(126,200,227,.07);
+    display:none; overflow:hidden;
+  }
+  #codex.show { display:block; }
+  .codex-head {
+    display:flex; align-items:center; gap:8px; padding:9px 11px;
+    background:#0e0e1a; border-bottom:1px solid var(--edge);
+  }
+  .codex-head h3 {
+    margin:0; font:12px/1.3 var(--ui); font-weight:600; color:var(--accent);
+  }
+  .codex-head .tag {
+    font:9px/1 var(--mono); text-transform:uppercase; letter-spacing:.08em;
+    color:var(--faint); border:1px solid var(--edge2);
+    border-radius:3px; padding:3px 5px;
+  }
+  .codex-head button {
+    margin-left:auto; background:transparent; border:none; color:var(--faint);
+    font-size:16px; line-height:1; padding:2px 4px;
+  }
+  .codex-head button:hover { color:var(--bad); background:transparent; border:none; }
+  .codex-body { padding:11px; max-height:56vh; overflow-y:auto; }
+  .codex-body p { margin:0 0 9px; font-size:12px; line-height:1.6; color:var(--ink); }
+  .codex-body p:last-child { margin-bottom:0; }
+  .cx-formula {
+    font:11px/1.6 var(--mono); color:var(--gold);
+    background:#07070f; border:1px solid var(--edge);
+    border-left:2px solid var(--gold-dim);
+    border-radius:4px; padding:7px 9px; margin:0 0 9px;
+    word-break:break-word; white-space:pre-wrap;
+  }
+  .cx-meta { display:flex; flex-wrap:wrap; gap:5px; margin:0 0 9px; }
+  .cx-meta span {
+    font:9.5px/1 var(--mono); color:var(--dim);
+    background:#0e0e1a; border:1px solid var(--edge);
+    border-radius:3px; padding:4px 6px;
+  }
+  .cx-meta span b { color:var(--accent); font-weight:500; }
+  .cx-live {
+    font:11px/1.5 var(--mono); color:var(--ok);
+    background:rgba(127,214,164,.06); border:1px solid rgba(127,214,164,.22);
+    border-radius:4px; padding:6px 8px; margin:0 0 9px;
+  }
+  .cx-live em { color:var(--faint); font-style:normal; }
+  .cx-why {
+    font-size:11.5px; line-height:1.6; color:var(--dim);
+    border-top:1px solid var(--edge); padding-top:8px; margin:9px 0 0;
+  }
+  .cx-why b { color:var(--warn); font-weight:600; }
+  .cx-see { margin:9px 0 0; display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
+  .cx-see .lbl { font:9px/1 var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.08em; }
+  .cx-see button {
+    font:10px/1 var(--mono); padding:4px 7px; border-radius:3px;
+    background:transparent; border:1px solid var(--edge2); color:var(--dim);
+  }
+  .cx-see button:hover { border-color:var(--accent); color:var(--accent); }
+  code.inl {
+    font:11px/1.4 var(--mono); color:var(--gold);
+    background:#07070f; border-radius:3px; padding:1px 4px;
+  }
+
+  /* ------------------------------------------------------------- gate */
+  #gate {
+    position:fixed; inset:0; z-index:100; background:rgba(4,4,9,.96);
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  #gate .gcard {
+    max-width:560px; background:var(--panel); border:1px solid var(--edge2);
+    border-radius:9px; padding:20px 22px;
+    box-shadow:0 20px 60px rgba(0,0,0,.7);
+  }
+  #gate h2 { margin:0 0 4px; font-size:16px; color:var(--warn); }
+  #gate .sub {
+    font:10px/1.3 var(--mono); color:var(--faint);
+    text-transform:uppercase; letter-spacing:.1em; margin:0 0 14px;
+  }
+  #gate p { font-size:12.5px; line-height:1.65; margin:0 0 11px; color:var(--ink); }
+  #gate p b { color:var(--accent); }
+  #gate .fine { font-size:11px; color:var(--dim); }
+
+  .kbd {
+    display:inline-block; font:9.5px/1 var(--mono); color:var(--dim);
+    border:1px solid var(--edge2); border-bottom-width:2px;
+    border-radius:3px; padding:2.5px 4.5px; background:#0e0e1a;
+  }
+  @media (max-width:1180px) {
+    .rail { width:270px; } .rail.right { width:280px; }
+  }
+  @media (max-width:900px) {
+    body { overflow:auto; } #shell { height:auto; }
+    #body { flex-direction:column; }
+    .rail, .rail.right { width:auto; border:none; border-top:1px solid var(--edge); }
+    #stage-wrap { height:52vh; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================ gate -->
+<div id="gate">
+  <div class="gcard" role="alertdialog" aria-labelledby="gate-title">
+    <h2 id="gate-title">Before you begin</h2>
+    <p class="sub">Resonarium Console &middot; local-only instrument</p>
+    <p><b>Photosensitivity.</b> This page renders slowly animated visuals.
+    All visual modulation is hard-capped at 2.5&nbsp;Hz, below the 3&ndash;30&nbsp;Hz
+    range associated with photosensitive risk. If you are sensitive to
+    flashing or pulsing imagery, or feel any discomfort, close the page.</p>
+    <p><b>Audio.</b> Tones start quiet and all audio is clamped to
+    20&nbsp;Hz&ndash;18&nbsp;kHz. Set your system volume low before starting,
+    especially with headphones.</p>
+    <p><b>What this is.</b> An aesthetic, generative audiovisual instrument
+    seeded from chart geometry. It is not a medical device and makes no
+    diagnostic, therapeutic, or health claims of any kind.</p>
+    <p><b>Privacy.</b> Everything runs in this page. No network requests are
+    made. Chart data and intention text stay in memory only, and are never
+    written to browser storage, the trace, or exports unless you explicitly
+    opt in.</p>
+    <p class="fine">Every parameter in this console carries an
+    <span class="im" aria-hidden="true"></span> mark. Open it for the exact
+    formula, its range, and why the limit exists.</p>
+    <div class="row mt">
+      <button class="primary" id="gate-accept">I understand &mdash; enter</button>
+    </div>
+  </div>
+</div>
+
+<div id="shell">
+
+<!-- ========================================================== header -->
+<header>
+  <canvas id="sigil-chip" width="72" height="72"
+          title="Seed sigil — click to open the Sigil view"></canvas>
+  <div class="brand">
+    <b>Resonarium Console</b>
+    <span>natal bedrock &middot; biosentinel overlay</span>
+  </div>
+  <button id="seed-chip" class="empty" data-info="seed">no seed anchored</button>
+  <span class="spacer"></span>
+  <span class="badge" id="bdg-seed">unseeded</span>
+  <span class="badge" id="bdg-audio">audio off</span>
+  <span class="badge" id="bdg-sentinel">sentinel off</span>
+  <span class="badge" id="bdg-net">offline</span>
+</header>
+
+<div id="body">
+
+<!-- ======================================================= left rail -->
+<div class="rail left">
+
+  <div class="panel">
+    <h2><span class="idx">01</span> Natal source
+      <button class="im" data-info="chart" aria-label="About the natal chart input"></button>
+    </h2>
+    <div class="pbody">
+      <div class="row">
+        <button class="sm grow" id="btn-demo">Demo chart</button>
+        <button class="sm grow" id="btn-random">Random</button>
+        <button class="sm" id="btn-clear-chart">Clear</button>
+      </div>
+      <label class="fld" for="chart-json">chart json
+        <button class="im" data-info="chart-fields" aria-label="About chart fields"></button>
+      </label>
+      <textarea id="chart-json" spellcheck="false"
+        placeholder='{"sun":142.73,"moon":78.41,"asc":215.92,"mc":312.44,"aspects_sum":1247.8}'></textarea>
+      <label class="fld" for="intention">intention
+        <button class="im" data-info="intention" aria-label="About the intention string"></button>
+      </label>
+      <input type="text" id="intention" spellcheck="false"
+             maxlength="256" placeholder="clarity">
+      <div class="row mt">
+        <button class="primary grow" id="btn-anchor">Anchor natal seed</button>
+      </div>
+      <div class="status" id="anchor-status"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="idx">02</span> Derivation chain
+      <button class="im" data-info="derivation" aria-label="About the derivation chain"></button>
+      <span class="h2-right" id="chain-ver">v&mdash;</span>
+    </h2>
+    <div class="pbody tight">
+      <div class="chain">
+        <div class="step" id="step-canon">
+          <div class="sh">1 &middot; canonical string
+            <button class="im" data-info="canonical" aria-label="About canonicalization"></button>
+          </div>
+          <div class="sv empty" id="v-canon">&mdash;</div>
+        </div>
+        <div class="step" id="step-digest">
+          <div class="sh">2 &middot; sha-256 digest
+            <button class="im" data-info="sha256" aria-label="About the digest"></button>
+          </div>
+          <div class="sv empty" id="v-digest">&mdash;</div>
+        </div>
+        <div class="step" id="step-seed">
+          <div class="sh">3 &middot; natal seed &mdash; uint64
+            <button class="im" data-info="seed" aria-label="About the seed"></button>
+          </div>
+          <div class="sv gold empty" id="v-seed">&mdash;</div>
+        </div>
+        <div class="step" id="step-prng">
+          <div class="sh">4 &middot; mulberry32 state
+            <button class="im" data-info="prng" aria-label="About the PRNG"></button>
+          </div>
+          <div class="sv empty" id="v-prng">&mdash;</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="idx">03</span> Natal bedrock
+      <button class="im" data-info="bedrock" aria-label="About bedrock frequencies"></button>
+      <span class="h2-right" id="bedrock-count">0 voices</span>
+    </h2>
+    <div class="tbl-wrap">
+      <table class="eng" id="tbl-bedrock">
+        <thead><tr>
+          <th>body</th><th style="text-align:right">longitude</th>
+          <th style="text-align:right">Hz</th><th style="text-align:center">note</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="pbody tight">
+      <div class="readout"><span class="rk">carrier
+        <button class="im" data-info="binaural" aria-label="About the binaural pair"></button>
+      </span><span class="rv gold" id="v-carrier">&mdash;</span></div>
+      <div class="readout"><span class="rk">beat</span>
+        <span class="rv gold" id="v-beat">&mdash;</span></div>
+      <div class="readout"><span class="rk">span</span>
+        <span class="rv dim" id="v-span">&mdash;</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="idx">04</span> State &amp; snapshots
+      <button class="im" data-info="state-io" aria-label="About state export and import"></button>
+    </h2>
+    <div class="pbody">
+      <div class="row">
+        <button class="sm grow" id="btn-export">Export state</button>
+        <button class="sm grow" id="btn-import">Import</button>
+      </div>
+      <div class="chk">
+        <input type="checkbox" id="opt-include-chart">
+        <label for="opt-include-chart">include raw chart + intention
+          <button class="im" data-info="redaction" aria-label="About redaction"></button>
+        </label>
+      </div>
+      <hr class="sep">
+      <div class="row">
+        <button class="sm grow" id="btn-snap">Snapshot</button>
+        <button class="sm" id="btn-snap-clear">Clear</button>
+      </div>
+      <div id="snaplist" class="note">no snapshots</div>
+      <div class="status" id="io-status"></div>
+    </div>
+  </div>
+
+</div><!-- /left rail -->
+
+<!-- =========================================================== stage -->
+<div id="stage-col">
+  <div id="stage-bar">
+    <button class="vtab sel" data-view="field">Field<span class="vk">1</span></button>
+    <button class="vtab" data-view="lattice">Lattice<span class="vk">2</span></button>
+    <button class="vtab" data-view="cymatic">Cymatic<span class="vk">3</span></button>
+    <button class="vtab" data-view="spectrum">Spectrum<span class="vk">4</span></button>
+    <button class="vtab" data-view="sigil">Sigil<span class="vk">5</span></button>
+    <span class="spacer"></span>
+    <button class="im" id="view-info" data-info="view-field"
+            style="margin-right:8px" aria-label="About this view"></button>
+  </div>
+  <div id="stage-wrap">
+    <canvas id="stage"></canvas>
+    <div id="stage-hud"></div>
+    <div id="stage-note"></div>
+  </div>
+  <div id="transport">
+    <button class="primary" id="btn-audio">Start audio</button>
+    <div class="vol">
+      <span style="font:9px/1 var(--mono);color:var(--faint);letter-spacing:.08em">VOL</span>
+      <input type="range" id="master-vol" min="0" max="100" value="32">
+      <span style="font:11px/1 var(--mono);color:var(--gold);width:26px;text-align:right"
+            id="vol-read">32</span>
+    </div>
+    <button class="sm danger" id="btn-panic" title="Silence everything immediately">Panic</button>
+    <span class="tstat" id="engine-status">idle &mdash; anchor a seed to begin</span>
+  </div>
+</div>
+
+<!-- ====================================================== right rail -->
+<div class="rail right">
+
+  <div class="panel">
+    <h2><span class="idx">05</span> Sentinel overlay
+      <button class="im" data-info="sentinel" aria-label="About sentinel mode"></button>
+      <span class="h2-right"><span class="kbd">S</span></span>
+    </h2>
+    <div class="pbody">
+      <div class="row">
+        <button class="primary grow" id="btn-sentinel">Enable sentinel</button>
+      </div>
+      <fieldset id="sentinel-fields" disabled style="border:none;padding:0;margin:9px 0 0">
+        <div class="knob">
+          <div class="knob-head">
+            <span class="kname">n &mdash; ghost voices</span>
+            <button class="im" data-info="p-n" aria-label="About n"></button>
+            <span class="kval" id="k-n">8</span>
+          </div>
+          <input type="range" id="s-n" min="0" max="64" step="1" value="8">
+          <div class="knob-scale"><span>0</span><span>64</span></div>
+        </div>
+        <div class="knob">
+          <div class="knob-head">
+            <span class="kname">k &mdash; coupling</span>
+            <button class="im" data-info="p-k" aria-label="About k"></button>
+            <span class="kval" id="k-k">0.70</span>
+          </div>
+          <input type="range" id="s-k" min="0" max="1" step="0.01" value="0.7">
+          <div class="knob-scale"><span>0.00 free</span><span>1.00 locked</span></div>
+        </div>
+        <div class="knob">
+          <div class="knob-head">
+            <span class="kname">perturb</span>
+            <button class="im" data-info="p-perturb" aria-label="About perturb"></button>
+            <span class="kval" id="k-perturb">5.0<span class="kunit"> Hz</span></span>
+          </div>
+          <input type="range" id="s-perturb" min="0" max="100" step="0.5" value="5">
+          <div class="knob-scale"><span>0</span><span>100 Hz</span></div>
+        </div>
+        <div class="knob">
+          <div class="knob-head">
+            <span class="kname">spread</span>
+            <button class="im" data-info="p-spread" aria-label="About spread"></button>
+            <span class="kval" id="k-spread">1.00</span>
+          </div>
+          <input type="range" id="s-spread" min="0" max="10" step="0.05" value="1">
+          <div class="knob-scale"><span>0 periodic</span><span>10</span></div>
+        </div>
+      </fieldset>
+      <div class="status" id="sentinel-status"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="idx">06</span> Telemetry
+      <button class="im" data-info="telemetry" aria-label="About telemetry"></button>
+    </h2>
+    <div class="pbody tight">
+      <div class="readout"><span class="rk">deviation mean</span>
+        <span class="rv gold" id="t-dev-mean">0.00 Hz</span></div>
+      <div class="readout"><span class="rk">deviation max</span>
+        <span class="rv gold" id="t-dev-max">0.00 Hz</span></div>
+      <div class="readout"><span class="rk">ghost span</span>
+        <span class="rv" id="t-span">0.00 Hz</span></div>
+      <div class="readout"><span class="rk">sturmian defect
+        <button class="im" data-info="sturmian" aria-label="About the Sturmian defect"></button>
+      </span><span class="rv ok" id="t-defect">&mdash;</span></div>
+      <div class="readout"><span class="rk">prng draws</span>
+        <span class="rv" id="t-draws">0</span></div>
+      <div class="readout"><span class="rk">next entropy</span>
+        <span class="rv dim" id="t-next">&mdash;</span></div>
+      <div class="readout"><span class="rk">frame</span>
+        <span class="rv dim" id="t-fps">&mdash;</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="idx">07</span> Ghost lattice
+      <button class="im" data-info="lattice" aria-label="About the ghost lattice"></button>
+      <span class="h2-right" id="lat-word">&mdash;</span>
+    </h2>
+    <div class="tbl-wrap" style="max-height:170px">
+      <table class="eng" id="tbl-ghost">
+        <thead><tr>
+          <th>#</th><th style="text-align:center">sym</th>
+          <th style="text-align:right">base Hz</th>
+          <th style="text-align:right">live Hz</th>
+          <th style="text-align:right">&Delta;</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="idx">08</span> Temporal trace
+      <button class="im" data-info="trace" aria-label="About the temporal trace"></button>
+      <span class="h2-right" id="trace-count">0</span>
+    </h2>
+    <div class="pbody tight">
+      <ul id="trace-list"></ul>
+      <div class="row mt">
+        <button class="sm grow" id="btn-trace-clear">Clear trace</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /right rail -->
+</div><!-- /body -->
+</div><!-- /shell -->
+
+<!-- ==================================================== codex popover -->
+<div id="codex" role="dialog" aria-labelledby="codex-title">
+  <div class="codex-head">
+    <h3 id="codex-title">&mdash;</h3>
+    <span class="tag" id="codex-tag"></span>
+    <button id="codex-close" aria-label="Close">&times;</button>
+  </div>
+  <div class="codex-body" id="codex-body"></div>
+</div>
+
+<script src="natal_seed.js"></script>
+<script>
+"use strict";
+(function () {
+
+  const boot = document.getElementById("engine-status");
+  if (typeof NatalSeed === "undefined") {
+    boot.textContent = "natal_seed.js failed to load — keep it beside this file.";
+    boot.style.color = "var(--bad)";
+    return;
+  }
+  const NS = NatalSeed;
+  const $ = (id) => document.getElementById(id);
+  const TAU = Math.PI * 2;
+  const PHI = (1 + Math.sqrt(5)) / 2;
+
+  /* ==================================================================
+     CODEX — the informational layer.
+
+     Every entry documents one real quantity in the engine: what it is,
+     the exact expression that produces it, its clamped domain, and why
+     that clamp exists. `live` pulls the current value straight out of
+     engine state, so an entry is never stale relative to the machine.
+     ================================================================== */
+  const CODEX = {
+
+    /* ---------------------------------------------------- seed spine */
+    chart: {
+      title: "Natal chart", tag: "input",
+      body: "The geometric input. A flat JSON object of ecliptic longitudes in " +
+        "degrees, plus optional scalar summaries. Only the numbers matter — " +
+        "no birth time, date, or location ever enters this page, and none is needed: " +
+        "the chart you paste is already the reduced form.",
+      formula: "chart = { sun, moon, …, asc, mc, aspects_sum, … }",
+      meta: [["minimum fields", "3 longitudes"], ["domain", "|value| < 1e21"]],
+      why: "At least three planetary or angular longitudes are required so a seed " +
+        "cannot be derived from a near-empty object. The 1e21 bound is a " +
+        "cross-substrate guard: above it JavaScript's toFixed(6) switches to " +
+        "exponential notation while Python's %.6f does not, which would give the " +
+        "two implementations different canonical strings and therefore different seeds.",
+      see: ["chart-fields", "canonical", "seed"],
+    },
+
+    "chart-fields": {
+      title: "Canonical field order", tag: "spec",
+      body: "Sixteen keys have a fixed canonical position. Any other key you " +
+        "include is appended after them, sorted by Unicode code point. Longitude " +
+        "keys additionally become bedrock oscillators.",
+      formula: "sun moon mercury venus mars jupiter saturn uranus neptune pluto\n" +
+        "asc mc true_node chiron aspects_sum house_cusps_hash",
+      meta: [["longitude keys", "first 14"], ["extras", "code-point order"]],
+      why: "Extras are sorted by code point, not by JavaScript's default sort, " +
+        "which compares UTF-16 code units. The two disagree for anything outside " +
+        "the Basic Multilingual Plane — an emoji key would sort differently in " +
+        "JS than in Python, producing a different canonical string and a different seed.",
+      see: ["canonical", "bedrock"],
+      live: () => S.chart
+        ? Object.keys(S.chart).length + " keys supplied, " +
+          NS.LONGITUDE_KEYS.filter((k) => k in S.chart).length + " of them longitudes"
+        : null,
+    },
+
+    intention: {
+      title: "Intention", tag: "input",
+      body: "A short free-text phrase folded into the seed. It is sanitized first: " +
+        "control characters are dropped, runs of spaces collapse to one, the ends " +
+        "are trimmed, and the result is cut to 256 code points.",
+      formula: "raw ← canonical(chart)\nif intention: raw ← raw + \"|intention:\" + sanitized",
+      meta: [["max length", "256 code points"], ["stored", "memory only"]],
+      why: "Sanitizing before hashing means visually identical phrases hash " +
+        "identically — trailing whitespace or a stray tab cannot silently give " +
+        "you a different instrument. The raw text never reaches storage, the trace, " +
+        "or an export unless you tick the opt-in box.",
+      see: ["canonical", "redaction"],
+      live: () => {
+        const s = NS.sanitizeIntention($("intention").value);
+        return s ? "sanitizes to “" + s + "” (" + Array.from(s).length + " cp)"
+                 : "empty — omitted from the canonical string";
+      },
+    },
+
+    canonical: {
+      title: "Canonical string", tag: "step 1",
+      body: "Every field is rendered as key:value with numbers fixed to exactly six " +
+        "decimal places, joined by a pipe. This string — not the object — is " +
+        "what gets hashed. It is byte-identical in the browser and in the Python CLI.",
+      formula: "\"sun:142.730000|moon:78.410000|…|intention:clarity\"",
+      meta: [["number format", "%.6f"], ["separator", "|"]],
+      why: "Objects have no inherent order and floats have no inherent text form. " +
+        "Fixing both is what makes the seed reproducible across two languages: " +
+        "same chart, same intention, same 64 bits, in JavaScript and in Python.",
+      see: ["chart-fields", "sha256", "parity"],
+      live: () => S.canonical ? S.canonical.length + " bytes" : null,
+    },
+
+    sha256: {
+      title: "SHA-256 digest", tag: "step 2",
+      body: "The canonical string is UTF-8 encoded and hashed with a compact " +
+        "pure-JavaScript SHA-256 bundled inside natal_seed.js — no Web Crypto, " +
+        "no async, no network. Derivation is synchronous and works on file://.",
+      formula: "digest = SHA-256( utf8( canonical ) )    → 32 bytes",
+      meta: [["implementation", "FIPS 180-4"], ["output", "256 bits"]],
+      why: "Web Crypto's digest is Promise-based and unavailable on some file:// " +
+        "origins. A bundled implementation keeps the whole chain synchronous, which " +
+        "is what lets the interface show you every intermediate step at once.",
+      see: ["seed", "canonical"],
+      live: () => S.digestHex ? S.digestHex.slice(0, 16) + "… (showing first 8 of 32 bytes)" : null,
+    },
+
+    seed: {
+      title: "Natal seed", tag: "step 3",
+      body: "The first eight bytes of the digest, read big-endian as an unsigned " +
+        "64-bit integer. This single number is the identity of the instrument: it " +
+        "fixes the sigil, every random draw, and every ghost placement.",
+      formula: "seed = uint64_be( digest[0:8] )",
+      meta: [["width", "64 bits"], ["direction", "one-way"]],
+      why: "A digest is not reversible, so the seed can be logged, exported, and " +
+        "shown in the title bar without exposing the chart it came from. It is the " +
+        "one natal-derived value in this page that is safe to hand to anyone.",
+      see: ["prng", "sigil", "parity"],
+      live: () => S.seed === null ? null
+        : "0x" + NS.seedToHex(S.seed) + "  ·  " + S.seed.toString(10),
+    },
+
+    prng: {
+      title: "mulberry32", tag: "step 4",
+      body: "The low 32 bits of the seed initialise a mulberry32 generator. Every " +
+        "random decision the sentinel overlay makes — without exception — " +
+        "draws from this one stream. It is re-seeded at each activation, so a " +
+        "session is a deterministic replay rather than a fresh improvisation.",
+      formula: "state₀ = seed & 0xffffffff\n" +
+        "t = state += 0x6D2B79F5 ; … ; return (t ⊕ t≫14) / 2³²",
+      meta: [["period", "2³²"], ["draws per event", "1 per ghost"]],
+      why: "One generator, re-seeded on activation, is what makes the instrument " +
+        "reproducible. Turn the sentinel off and on with the same parameters and you " +
+        "hear the identical sequence of drifts — which is also what lets the " +
+        "Python and JavaScript halves be tested against each other draw for draw.",
+      see: ["seed", "modulate", "parity"],
+      live: () => S.seed === null ? null
+        : "state₀ = " + NS.seedLower32(S.seed) + "  ·  " + S.draws + " draws so far",
+    },
+
+    derivation: {
+      title: "The derivation chain", tag: "overview",
+      body: "Four deterministic steps stand between the chart you paste and the " +
+        "sound you hear. Nothing else feeds in — no clock, no Math.random, no " +
+        "device entropy. Given the same chart and intention this chain reproduces " +
+        "the same instrument on any machine, in either language.",
+      formula: "chart + intention\n  → canonical string\n  → SHA-256\n" +
+        "  → uint64 seed\n  → mulberry32\n  → bedrock · ghosts · sigil",
+      meta: [["schema", NS.SCHEMA_VERSION], ["entropy sources", "1"]],
+      why: "Determinism is the whole design. It is why a seed can be shared instead " +
+        "of a chart, why a session can be replayed exactly, and why the cross-language " +
+        "parity tests are able to assert bit-for-bit agreement at all.",
+      see: ["canonical", "seed", "parity"],
+    },
+
+    parity: {
+      title: "Cross-language parity", tag: "invariant",
+      body: "natal_seed.js and natal_seed.py implement the same chain and are tested " +
+        "against each other: same canonical string, same digest, same 64-bit seed, " +
+        "same PRNG sequence, same ghost placement. The suite in tests/ generates " +
+        "vectors from one side and asserts them on the other.",
+      formula: "python3 resonarium_biosentinel_cli.py seed --chart chart.json \\\n" +
+        "        --intention \"clarity\"\n→ seed_hex 86813727ef5b4048",
+      meta: [["reference chart", "TEST_CHART"], ["reference seed", "86813727ef5b4048"]],
+      why: "Two implementations that agree by construction is a stronger claim than " +
+        "either alone. CI installs Node specifically so the parity tests cannot skip " +
+        "themselves and pass silently — a skip there is treated as a failure.",
+      see: ["seed", "canonical"],
+      live: () => {
+        try {
+          const s = NS.deriveNatalSeed(NS.TEST_CHART, NS.TEST_INTENTION);
+          const hex = NS.seedToHex(s);
+          return "self-check: " + hex +
+            (hex === "86813727ef5b4048" ? "  ✓ matches the Python reference"
+                                        : "  ✗ DIVERGENCE");
+        } catch (e) { return "self-check failed"; }
+      },
+    },
+
+    /* ------------------------------------------------------- bedrock */
+    bedrock: {
+      title: "Natal bedrock", tag: "derived",
+      body: "Each planetary or angular longitude maps to one sine oscillator. " +
+        "The longitude is reduced modulo 360 and read as an exponent: a full " +
+        "180° of arc is one octave, so the whole zodiac spans two octaves " +
+        "above 110 Hz.",
+      formula: "fᵢ = 110 · 2^(longitudeᵢ mod 360 / 180)   → 110…440 Hz",
+      meta: [["base", "110 Hz (A2)"], ["octave", "180° of arc"], ["clamp", "20–18000 Hz"]],
+      why: "These frequencies are written once at anchor time and then frozen. No " +
+        "sentinel code path can modify them — the overlay only adds voices " +
+        "around the baseline. That is what makes switching the sentinel off restore " +
+        "the pure natal output exactly, rather than approximately.",
+      see: ["binaural", "clamp-freq", "sentinel"],
+      live: () => S.bedrock.length
+        ? S.bedrock.length + " oscillators, " +
+          S.bedrock[0].toFixed(2) + "–" +
+          S.bedrock[S.bedrock.length - 1].toFixed(2) + " Hz"
+        : null,
+    },
+
+    binaural: {
+      title: "Binaural pair", tag: "derived",
+      body: "Two oscillators hard-panned left and right, offset by a small beat " +
+        "frequency. The carrier comes from the ascendant, the beat from the summed " +
+        "aspect measure. The perceived pulse is the difference between the ears.",
+      formula: "carrier = 180 + (asc / 360) · 120        → 180…300 Hz\n" +
+        "beat    = 4 + (|aspects_sum| mod 8)     → 4–12 Hz\n" +
+        "L = carrier − beat/2   R = carrier + beat/2",
+      meta: [["carrier", "180–300 Hz"], ["beat", "4–12 Hz"], ["pan", "hard L/R"]],
+      why: "The pair needs headphones to work as intended — over speakers the " +
+        "two channels mix acoustically and you hear a physical beat rather than a " +
+        "binaural one. This is an aesthetic effect. No claim is made about it doing " +
+        "anything to you.",
+      see: ["bedrock", "clamp-freq"],
+      live: () => S.binaural
+        ? "carrier " + S.binaural.carrier_hz.toFixed(2) + " Hz · beat " +
+          S.binaural.beat_hz.toFixed(2) + " Hz"
+        : null,
+    },
+
+    /* ------------------------------------------------------ sentinel */
+    sentinel: {
+      title: "Sentinel overlay", tag: "module",
+      body: "A layer of detuned ghost voices placed around the natal bedrock. " +
+        "Every few seconds each ghost is retargeted to a new frequency drawn from " +
+        "the seeded generator and damped back toward its base. The bedrock itself " +
+        "never moves.",
+      formula: "ghostᵢ(t) = baseᵢ + driftᵢ(t)      baseᵢ from the lattice\n" +
+        "retarget every 4.0 s, ramped over 3.6 s",
+      meta: [["gain budget", "0.12 total"], ["cadence", "4.0 s"], ["wave", "triangle"]],
+      why: "The overlay has a fixed total gain budget divided among the voices, so " +
+        "raising n thickens the texture without raising the level. Turning it off " +
+        "cancels the ramps and stops the oscillators, leaving exactly the bedrock " +
+        "that was there before.",
+      see: ["p-n", "p-k", "p-perturb", "p-spread", "lattice", "modulate"],
+      live: () => S.sentinel.active
+        ? S.ghosts.length + " ghosts running, " + S.draws + " draws consumed"
+        : "inactive — output is pure natal bedrock",
+    },
+
+    "p-n": {
+      title: "n — ghost voices", tag: "parameter",
+      body: "How many ghost oscillators the overlay runs. Changing n while the " +
+        "sentinel is active rebuilds the bank and re-seeds the generator, so the " +
+        "sequence restarts deterministically rather than drifting on.",
+      formula: "n ∈ [0, 64]   integer\nper-voice gain = 0.12 / max(n, 8)",
+      meta: [["range", "0–64"], ["type", "integer"], ["default", "8"]],
+      why: "Dividing by max(n, 8) rather than n means small banks stay quiet " +
+        "instead of concentrating the whole budget into one or two loud voices. " +
+        "Above eight voices the total is held flat and each ghost gets thinner.",
+      see: ["sentinel", "lattice"],
+      live: () => "n = " + S.sentinel.n + "  ·  per-voice gain " +
+        (S.sentinel.n ? (0.12 / Math.max(S.sentinel.n, 8)).toFixed(4) : "0"),
+    },
+
+    "p-k": {
+      title: "k — coupling", tag: "parameter",
+      body: "How strongly each ghost is pulled back toward its base frequency. " +
+        "It scales the drift directly: at k = 1 the term vanishes and the ghosts sit " +
+        "exactly on their lattice positions; at k = 0 they take the full perturbation.",
+      formula: "drift = raw · spreadFactor · (1 − k)",
+      meta: [["range", "0.00–1.00"], ["1.00", "locked to base"], ["0.00", "free drift"]],
+      why: "k is the one control that can silence the entropy without stopping it. " +
+        "The generator still advances at k = 1 — the same draws happen, they " +
+        "just have no audible effect — so raising and lowering k does not " +
+        "desynchronise the replay.",
+      see: ["modulate", "p-perturb", "sentinel"],
+      live: () => "k = " + S.sentinel.k.toFixed(2) + "  ·  drift retains " +
+        ((1 - S.sentinel.k) * 100).toFixed(0) + "% of its amplitude",
+    },
+
+    "p-perturb": {
+      title: "perturb — drift amplitude", tag: "parameter",
+      body: "The half-width of the raw frequency excursion, in hertz, before " +
+        "coupling and spread are applied. Each retarget draws one uniform value " +
+        "from the seeded generator and maps it into this band.",
+      formula: "raw = (rand() − 0.5) · 2 · perturb   → ±perturb Hz",
+      meta: [["range", "0–100 Hz"], ["draws", "1 per ghost per event"]],
+      why: "Exactly one draw per ghost per event is a parity requirement, not just " +
+        "tidiness — the Python and JavaScript implementations have to consume " +
+        "the generator at the same rate or their streams diverge after the first event.",
+      see: ["modulate", "p-k", "prng"],
+      live: () => {
+        const eff = S.sentinel.perturb * (1 - S.sentinel.k);
+        return "±" + S.sentinel.perturb.toFixed(1) + " Hz raw  ·  ±" +
+          eff.toFixed(2) + " Hz after coupling";
+      },
+    },
+
+    "p-spread": {
+      title: "spread — lattice dispersion", tag: "parameter",
+      body: "Two roles at once. It scales the per-voice drift by position in the " +
+        "bank, and it sets the step ratios of the quasiperiodic lattice the ghosts " +
+        "are placed on. At zero the lattice collapses to plain bedrock cycling.",
+      formula: "spreadFactorᵢ = 1 + (i / n) · spread\n" +
+        "r_L = 1 + 0.04 · spread        r_S = 1 + 0.04 · spread / τ",
+      meta: [["range", "0.00–10.00"], ["0.00", "periodic"], ["τ", PHI.toFixed(6)]],
+      why: "spread = 0 reproduces the older periodic placement bit-for-bit, so the " +
+        "lattice was added without breaking any state saved before it existed. " +
+        "Above zero, the two step ratios differ by the golden ratio and the bank " +
+        "becomes genuinely quasiperiodic.",
+      see: ["lattice", "fibonacci", "pisot"],
+      live: () => "spread = " + S.sentinel.spread.toFixed(2) +
+        "  ·  r_L = " + (1 + 0.04 * S.sentinel.spread).toFixed(5) +
+        "  ·  r_S = " + (1 + 0.04 * S.sentinel.spread / PHI).toFixed(5),
+    },
+
+    modulate: {
+      title: "Frequency modulation", tag: "kernel",
+      body: "The one function that decides where a ghost goes next. It reads the " +
+        "base frequency, never writes it, consumes exactly one random draw, and " +
+        "returns a new value that has passed the frequency clamp.",
+      formula: "raw    = (rand() − 0.5) · 2 · perturb\n" +
+        "factor = 1 + (i / max(n,1)) · spread\n" +
+        "drift  = raw · factor · (1 − k)\n" +
+        "out    = clamp(base + drift, 20, 18000)",
+      meta: [["reads", "base"], ["writes", "nothing"], ["draws", "exactly 1"]],
+      why: "Purity here is what protects the bedrock. Because the function returns " +
+        "a value instead of mutating one, there is no code path by which the " +
+        "overlay can corrupt the natal baseline — the invariant is structural " +
+        "rather than a matter of remembering not to.",
+      see: ["prng", "p-k", "clamp-freq", "sentinel"],
+    },
+
+    /* ------------------------------------------------------- lattice */
+    lattice: {
+      title: "Ghost lattice", tag: "geometry",
+      body: "Ghost base frequencies are not evenly spaced and not a simple repeat " +
+        "of the bedrock. They sit on a one-dimensional quasiperiodic lattice whose " +
+        "step sizes follow the Fibonacci word — an aperiodic sequence of two " +
+        "symbols that never repeats yet is completely deterministic.",
+      formula: "ratios₀ = 1\nratiosⱼ₊₁ = ratiosⱼ · (wordⱼ = L ? r_L : r_S)\n" +
+        "baseᵢ = bedrock[i mod len] · ratiosᵢ / ratios[⌊n/2⌋]",
+      meta: [["order", "Fibonacci word"], ["normalised at", "midpoint"]],
+      why: "Dividing by the midpoint ratio keeps the bank centred on the bedrock as " +
+        "spread rises — the lattice expands around the natal frequencies " +
+        "instead of climbing away from them.",
+      see: ["fibonacci", "pisot", "sturmian", "p-spread"],
+      live: () => S.ghostBases.length
+        ? S.ghostBases.length + " sites spanning " +
+          (Math.max.apply(null, S.ghostBases) - Math.min.apply(null, S.ghostBases)).toFixed(2) + " Hz"
+        : null,
+    },
+
+    fibonacci: {
+      title: "Fibonacci word", tag: "mathematics",
+      body: "Start from a single L and repeatedly substitute. The string grows " +
+        "without ever settling into a repeating cycle, and the ratio of L to S " +
+        "converges on the golden ratio.",
+      formula: "L → LS     S → L\n\nL · LS · LSL · LSLLS · LSLLSLSL …",
+      meta: [["|L| : |S|", "→ τ"], ["periodic", "never"]],
+      why: "It gives structure without repetition. A periodic bank produces beating " +
+        "at the repeat interval; a random bank produces no coherent structure at " +
+        "all. The Fibonacci word sits precisely between the two.",
+      see: ["lattice", "sturmian", "pisot"],
+      live: () => S.word ? S.word.slice(0, 34) + (S.word.length > 34 ? "…" : "") : null,
+    },
+
+    sturmian: {
+      title: "Sturmian defect", tag: "diagnostic",
+      body: "A Sturmian sequence has exactly n+1 distinct subwords of each length n " +
+        "— the least possible complexity for a sequence that is not eventually " +
+        "periodic. The defect measures how far the generated word deviates from that.",
+      formula: "defect = (1/nₘₐₓ) · Σₙ |p(n) − (n + 1)|",
+      meta: [["ideal", "0.000"], ["window", "n = 1…6"]],
+      why: "It is a cheap assertion that the word generator is still producing what " +
+        "it claims to. A nonzero defect means the substitution or the truncation is " +
+        "wrong, and the lattice would no longer be quasiperiodic.",
+      see: ["fibonacci", "lattice"],
+      live: () => "current word: " + NS.sturmianDefect(NS.substitutionWord(200)).toFixed(4),
+    },
+
+    pisot: {
+      title: "Why it diffracts", tag: "mathematics",
+      body: "The Fibonacci substitution has eigenvalues τ and −1/τ. " +
+        "Because the second is smaller than 1 in magnitude, the substitution is " +
+        "Pisot — and Pisot substitutions produce pure point diffraction: the " +
+        "spectrum is a set of sharp peaks, not a smear.",
+      formula: "τ = (1 + √5) / 2 ≈ 1.618034\n" +
+        "−1/τ ≈ −0.618034      |−1/τ| < 1  ⇒  Pisot",
+      meta: [["λ₁", "+1.618034"], ["λ₂", "−0.618034"], ["diffraction", "pure point"]],
+      why: "This is what makes the lattice musically meaningful rather than merely " +
+        "irregular. The peaks fall at ratios of powers of τ, so the bank has a " +
+        "real harmonic identity — quasiperiodic, but structured. The Lattice view " +
+        "plots those peaks directly.",
+      see: ["fibonacci", "lattice", "view-lattice"],
+    },
+
+    /* -------------------------------------------------------- safety */
+    "clamp-freq": {
+      title: "Frequency clamp", tag: "safety",
+      body: "Every frequency that reaches an oscillator passes through one clamp, " +
+        "on every path — anchoring, modulation, import, and preset load alike.",
+      formula: "clampFrequency(hz) = min(max(hz, 20), 18000)",
+      meta: [["floor", "20 Hz"], ["ceiling", "18 kHz"]],
+      why: "The floor keeps sub-audio content out of the speakers, where it does " +
+        "nothing you can hear but still moves the cone. The ceiling stays below the " +
+        "range where a badly-conditioned value could produce a piercing tone. " +
+        "Clamping on every path rather than at input is deliberate: there is no " +
+        "route into the graph that bypasses it.",
+      see: ["bedrock", "modulate"],
+    },
+
+    "visual-cap": {
+      title: "Visual modulation cap", tag: "safety",
+      body: "All animated modulation rates in every view pass through a single " +
+        "clamp before they can drive anything on screen.",
+      formula: "clampVisualModulationHz(hz) = min(max(hz, 0), 2.5)",
+      meta: [["ceiling", "2.5 Hz"], ["risk band", "3–30 Hz"]],
+      why: "2.5 Hz sits below the 3–30 Hz band associated with photosensitive " +
+        "seizure risk, with margin. The cap is applied in the shared module rather " +
+        "than per-view so a new visualiser cannot forget it.",
+      see: ["view-field", "view-cymatic"],
+    },
+
+    /* ---------------------------------------------------- trace / io */
+    trace: {
+      title: "Temporal trace", tag: "log",
+      body: "An append-only record of engine events — anchoring, placement, " +
+        "each entropy event, each state change. Every entry passes a privacy guard " +
+        "before it is admitted.",
+      formula: "guard: refuse any entry whose params contain a chart,\n" +
+        "       intention, or birth-data key — throw, do not redact",
+      meta: [["capacity", "500 entries"], ["guard", "throws on leak"]],
+      why: "The guard throws rather than silently stripping the offending field. A " +
+        "silent redaction would let a leak-shaped bug live in the code indefinitely; " +
+        "an exception surfaces it the first time it runs. The same guard exists in " +
+        "the Python implementation.",
+      see: ["redaction", "state-io"],
+      live: () => S.trace.length + " of 500 entries",
+    },
+
+    redaction: {
+      title: "Export redaction", tag: "privacy",
+      body: "Exports strip the natal chart, the raw intention, and the bedrock " +
+        "frequency list by default. What remains is the seed, the sentinel " +
+        "parameters, and the trace — enough to reproduce the instrument, not " +
+        "enough to reconstruct the chart.",
+      formula: "redactState(s) = { …s } − natal_chart − chart − natal_bedrock",
+      meta: [["default", "redacted"], ["opt-in", "explicit checkbox"]],
+      why: "The seed alone is enough to reproduce every random decision, so a " +
+        "redacted export is still a complete recipe for the sound. Including the " +
+        "chart is offered, but it has to be a deliberate tick each time rather than " +
+        "a remembered setting.",
+      see: ["seed", "state-io", "trace"],
+      live: () => $("opt-include-chart").checked
+        ? "⚠ raw chart and intention WILL be written to the export file"
+        : "redacted — chart and intention stay in memory",
+    },
+
+    "state-io": {
+      title: "State interchange", tag: "format",
+      body: "Export and import speak the versioned schema shared with the Python " +
+        "CLI, so state moves between this page and the headless controller in either " +
+        "direction. Imported values are clamped again on the way in.",
+      formula: "python3 resonarium_biosentinel_cli.py export --out state.json\n" +
+        "python3 resonarium_biosentinel_cli.py set --n 16 --k 0.5 --on",
+      meta: [["schema", NS.SCHEMA_VERSION], ["cli state", "~/.resonarium/"]],
+      why: "Re-clamping on import matters because a state file is an untrusted " +
+        "input — it may have been hand-edited, or written by an older version " +
+        "with different limits. Nothing is trusted to have been clamped earlier.",
+      see: ["redaction", "sentinel"],
+    },
+
+    telemetry: {
+      title: "Telemetry", tag: "readout",
+      body: "Live measurements of what the overlay is actually doing, sampled each " +
+        "entropy event. Deviation is measured against each ghost's own lattice base, " +
+        "not against the bedrock, so it isolates drift from placement.",
+      formula: "devᵢ = |liveᵢ − baseᵢ|\n" +
+        "mean = Σ devᵢ / n        max = max devᵢ",
+      meta: [["sampled", "per entropy event"], ["units", "Hz"]],
+      why: "Separating drift from placement is the point. Raising spread moves the " +
+        "bases and changes the span, but should leave the deviation figures alone — " +
+        "if it does not, the lattice and the modulation are interfering with each other.",
+      see: ["modulate", "lattice", "sentinel"],
+    },
+
+    /* --------------------------------------------------------- views */
+    "view-field": {
+      title: "Field view", tag: "view",
+      body: "The natal bedrock as concentric rings, radius set by log-frequency, " +
+        "each carrying one marker that orbits at a fixed slow rate. Ghost voices " +
+        "appear as dashed rings whose radius wobbles in proportion to how far they " +
+        "have drifted from base.",
+      formula: "rᵢ = 40 + 270 · log₂(fᵢ / 20) / log₂(900)\n" +
+        "wobbleᵢ ∝ |liveᵢ − baseᵢ|",
+      meta: [["rotation", "0.05 Hz"], ["capped by", "2.5 Hz"]],
+      why: "Log radius means an octave is a constant distance, so the two-octave " +
+        "bedrock spreads evenly instead of bunching at the centre.",
+      see: ["bedrock", "visual-cap", "sentinel"],
+    },
+
+    "view-lattice": {
+      title: "Lattice view", tag: "view",
+      body: "The quasiperiodic structure made visible. The upper strip is the " +
+        "Fibonacci word driving placement. Below it, ghost sites on a log-frequency " +
+        "axis, with live positions tracking against their bases. At the bottom, the " +
+        "ratio spectrum — adjacent step ratios plotted against powers of τ.",
+      formula: "stepⱼ = baseⱼ₊₁ / baseⱼ        compare to r_L, r_S",
+      meta: [["upper", "substitution word"], ["lower", "ratio spectrum"]],
+      why: "The Pisot property predicts the steps take only two values, in Fibonacci " +
+        "order. This view is where you can check that against what the engine " +
+        "actually built, rather than taking it on faith.",
+      see: ["lattice", "fibonacci", "pisot", "sturmian"],
+    },
+
+    "view-cymatic": {
+      title: "Cymatic view", tag: "view",
+      body: "A spherical-harmonic nodal field. Each active voice contributes one " +
+        "real Yₗᵐ mode, with l and m derived from its frequency and the seed. " +
+        "The surface is displaced by the summed amplitude and rendered as a depth-sorted " +
+        "point cloud. Drag to rotate, scroll to zoom.",
+      formula: "Yₗᵐ(θ,φ) = Nₗᵐ · Pₗᵐ(cos θ) · " +
+        "{cos, sin}(mφ)\nr(θ,φ) = 1 + deform · Σₘ Aₘ Yₗᵐ sin(2π fₘ t)",
+      meta: [["l", "1–9"], ["m", "−l…l"], ["basis", "real spherical harmonics"]],
+      why: "Bright bands are antinodes, dark seams are nodal lines — the same " +
+        "structure a Chladni plate shows, on a sphere. Mode assignment runs through " +
+        "the seeded generator, so the same chart always produces the same figure.",
+      see: ["bedrock", "visual-cap", "seed"],
+    },
+
+    "view-spectrum": {
+      title: "Spectrum view", tag: "view",
+      body: "A live FFT of the actual output, taken from an analyser node on the " +
+        "master bus. Bedrock frequencies are marked in blue and ghost frequencies in " +
+        "gold, so you can see which peak belongs to which body.",
+      formula: "FFT size 4096 · log-frequency axis · dB magnitude",
+      meta: [["fft", "4096"], ["axis", "20 Hz – 18 kHz, log"]],
+      why: "It closes the loop. Everything else in this console is derived from the " +
+        "seed; this is measured from the audio graph, so it is the one view that can " +
+        "contradict the others — and that is exactly what makes it worth having.",
+      see: ["bedrock", "lattice", "clamp-freq"],
+    },
+
+    "view-sigil": {
+      title: "Sigil view", tag: "view",
+      body: "A deterministic glyph drawn from the 64-bit seed. Sixteen nibbles " +
+        "become sixteen radii around a circle; the path through them is the outline, " +
+        "the bedrock frequencies set the inner rings, and the Fibonacci word places " +
+        "the marks around the rim.",
+      formula: "θₖ = 2πk / 16        ρₖ = r₀ + nibbleₖ / 15 · Δr",
+      meta: [["source", "seed only"], ["stable", "always"]],
+      why: "It makes a 64-bit number recognisable at a glance. Two charts that " +
+        "differ in the sixth decimal place produce visibly different sigils, which " +
+        "is a faster identity check than reading sixteen hex digits.",
+      see: ["seed", "fibonacci"],
+    },
+  };
+
+  /* ==================================================================
+     STATE
+     ================================================================== */
+  const S = {
+    chart: null,            // in-memory only, never persisted by default
+    intention: "",
+    canonical: "",
+    digestHex: "",
+    seed: null,             // BigInt | null
+    prng: null,
+    draws: 0,
+    bedrock: Object.freeze([]),   // frozen at anchor; never rewritten
+    binaural: null,
+    sentinel: NS.clampSentinelParams({}),
+    word: "",
+    ghostBases: [],         // lattice sites, computed with or without audio
+    ghosts: [],             // live audio nodes
+    trace: [],
+    snapshots: [],
+    view: "field",
+    lastDev: { mean: 0, max: 0 },
+    nextEntropyAt: 0,
+    fps: 0,
+  };
+
+  const STORAGE_KEY = "resonarium_console_state";
+  const TRACE_MAX = 500;
+  const ENTROPY_MS = 4000;
+  const GHOST_GAIN_TOTAL = 0.12;
+
+  // audio graph
+  let ctx = null, master = null, comp = null, analyser = null, freqData = null;
+  let bedrockNodes = [], binauralNodes = [], entropyTimer = null;
+
+  /* ==================================================================
+     Safe text. Every dynamic string goes through textContent; no status
+     message ever echoes chart or intention content.
+     ================================================================== */
+  function setStatus(el, text, cls) {
+    el.textContent = text;
+    el.className = "status" + (cls ? " " + cls : "");
+  }
+  function fmtHz(v) { return v.toFixed(2) + " Hz"; }
+
+  const NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  function hzToNote(hz) {
+    if (!(hz > 0)) return "—";
+    const n = Math.round(12 * Math.log2(hz / 440) + 69);
+    return NOTE_NAMES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
+  }
+
+  /* ==================================================================
+     CODEX POPOVER
+     ================================================================== */
+  const codex = $("codex");
+  let codexAnchor = null;
+
+  function openCodex(key, anchorEl) {
+    const e = CODEX[key];
+    if (!e) return;
+    if (codexAnchor && codexAnchor !== anchorEl) codexAnchor.classList.remove("active");
+    codexAnchor = anchorEl || null;
+    if (codexAnchor) codexAnchor.classList.add("active");
+
+    $("codex-title").textContent = e.title;
+    $("codex-tag").textContent = e.tag || "";
+    const b = $("codex-body");
+    b.textContent = "";
+
+    if (e.body) {
+      const p = document.createElement("p");
+      p.textContent = e.body;
+      b.appendChild(p);
+    }
+    if (e.formula) {
+      const f = document.createElement("div");
+      f.className = "cx-formula";
+      f.textContent = e.formula;
+      b.appendChild(f);
+    }
+    if (e.meta && e.meta.length) {
+      const m = document.createElement("div");
+      m.className = "cx-meta";
+      for (const [k, v] of e.meta) {
+        const s = document.createElement("span");
+        s.textContent = k + " ";
+        const bb = document.createElement("b");
+        bb.textContent = v;
+        s.appendChild(bb);
+        m.appendChild(s);
+      }
+      b.appendChild(m);
+    }
+    if (e.live) {
+      let val = null;
+      try { val = e.live(); } catch (err) { val = null; }
+      const l = document.createElement("div");
+      l.className = "cx-live";
+      if (val === null || val === undefined) {
+        const em = document.createElement("em");
+        em.textContent = "no live value — anchor a seed first";
+        l.appendChild(em);
+      } else {
+        l.textContent = String(val);
+      }
+      b.appendChild(l);
+    }
+    if (e.why) {
+      const w = document.createElement("p");
+      w.className = "cx-why";
+      const lab = document.createElement("b");
+      lab.textContent = "Why it is this way. ";
+      w.appendChild(lab);
+      w.appendChild(document.createTextNode(e.why));
+      b.appendChild(w);
+    }
+    if (e.see && e.see.length) {
+      const s = document.createElement("div");
+      s.className = "cx-see";
+      const lab = document.createElement("span");
+      lab.className = "lbl";
+      lab.textContent = "see also";
+      s.appendChild(lab);
+      for (const k of e.see) {
+        if (!CODEX[k]) continue;
+        const btn = document.createElement("button");
+        btn.textContent = CODEX[k].title;
+        btn.addEventListener("click", () => openCodex(k, codexAnchor));
+        s.appendChild(btn);
+      }
+      b.appendChild(s);
+    }
+
+    codex.classList.add("show");
+    positionCodex(anchorEl);
+    b.scrollTop = 0;
+  }
+
+  function positionCodex(anchorEl) {
+    const pad = 10;
+    const r = codex.getBoundingClientRect();
+    let left, top;
+    if (anchorEl) {
+      const a = anchorEl.getBoundingClientRect();
+      left = a.left + a.width / 2 - r.width / 2;
+      top = a.bottom + 8;
+      if (top + r.height > window.innerHeight - pad) {
+        top = a.top - r.height - 8;              // flip above
+      }
+    } else {
+      left = window.innerWidth / 2 - r.width / 2;
+      top = 80;
+    }
+    left = Math.max(pad, Math.min(left, window.innerWidth - r.width - pad));
+    top = Math.max(pad, Math.min(top, window.innerHeight - r.height - pad));
+    codex.style.left = left + "px";
+    codex.style.top = top + "px";
+  }
+
+  function closeCodex() {
+    codex.classList.remove("show");
+    if (codexAnchor) codexAnchor.classList.remove("active");
+    codexAnchor = null;
+  }
+
+  $("codex-close").addEventListener("click", closeCodex);
+  document.addEventListener("click", (ev) => {
+    const mark = ev.target.closest ? ev.target.closest("[data-info]") : null;
+    if (mark) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const key = mark.getAttribute("data-info");
+      if (codex.classList.contains("show") && codexAnchor === mark) closeCodex();
+      else openCodex(key, mark);
+      return;
+    }
+    if (codex.classList.contains("show") && !codex.contains(ev.target)) closeCodex();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && codex.classList.contains("show")) closeCodex();
+  });
+  window.addEventListener("resize", () => {
+    if (codex.classList.contains("show")) positionCodex(codexAnchor);
+  });
+
+  /* ==================================================================
+     TRACE — every entry passes the shared privacy guard.
+     ================================================================== */
+  function logEvent(event, params) {
+    let entry;
+    try {
+      entry = NS.makeTraceEntry(event, params);
+    } catch (err) {
+      // The guard threw: something tried to log natal data. Record that it
+      // happened, without the offending payload.
+      entry = NS.makeTraceEntry("privacy_guard_block", { blocked_event: String(event) });
+    }
+    S.trace.push(entry);
+    if (S.trace.length > TRACE_MAX) S.trace.splice(0, S.trace.length - TRACE_MAX);
+    renderTrace();
+  }
+
+  function renderTrace() {
+    const ul = $("trace-list");
+    ul.textContent = "";
+    const recent = S.trace.slice(-70).reverse();
+    for (const e of recent) {
+      const li = document.createElement("li");
+      const t = document.createElement("b");
+      t.textContent = e.event;
+      li.appendChild(t);
+      li.appendChild(document.createTextNode(
+        "  " + e.timestamp_utc.slice(11, 19) + "  "));
+      const keys = Object.keys(e.params);
+      if (keys.length) {
+        const i = document.createElement("i");
+        i.textContent = keys.map((k) => k + "=" + e.params[k]).join(" ");
+        li.appendChild(i);
+      }
+      ul.appendChild(li);
+    }
+    $("trace-count").textContent = String(S.trace.length);
+  }
+
+  /* ==================================================================
+     SEED SPINE
+     ================================================================== */
+  const DEMO_CHART = { sun:142.73, moon:78.41, asc:215.92, mc:312.44, aspects_sum:1247.8 };
+
+  function anchorSeed() {
+    let parsed;
+    const raw = $("chart-json").value.trim();
+    if (!raw) {
+      setStatus($("anchor-status"), "Paste a chart, or press Demo chart.", "warn");
+      return;
+    }
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      // Generic message — never echoes the input.
+      setStatus($("anchor-status"), "Chart is not valid JSON.", "bad");
+      return;
+    }
+    let seed, bedrock, binaural, canonical;
+    try {
+      NS.validateChart(parsed);
+      canonical = NS.canonicalizeChart(parsed);
+      seed = NS.deriveNatalSeed(parsed, $("intention").value);
+      bedrock = NS.bedrockFrequencies(parsed);
+      binaural = NS.binauralConfig(parsed);
+    } catch (err) {
+      const msg = (err && err.name === "ChartValidationError")
+        ? "Chart rejected: " + err.message
+        : "Chart could not be anchored.";
+      setStatus($("anchor-status"), msg, "bad");
+      return;
+    }
+
+    S.chart = parsed;
+    S.intention = NS.sanitizeIntention($("intention").value);
+    S.canonical = canonical;
+    S.seed = seed;
+    S.digestHex = NS.seedToHex(seed);   // the retained first 8 of 32 bytes
+    S.bedrock = bedrock;
+    S.binaural = binaural;
+    S.prng = NS.createNatalPRNG(seed);
+    S.draws = 0;
+
+    rebuildLattice();
+    renderChain();
+    renderBedrockTable();
+    drawSigilChip();
+
+    // The seed is a one-way digest, so it is safe to log. Nothing else here is.
+    logEvent("natal_anchor", {
+      seed_hex: S.digestHex,
+      bedrock_voices: bedrock.length,
+      carrier_hz: Number(binaural.carrier_hz.toFixed(3)),
+      beat_hz: Number(binaural.beat_hz.toFixed(3)),
+    });
+
+    setStatus($("anchor-status"),
+      "Anchored — " + bedrock.length + " bedrock voices.", "ok");
+    $("bdg-seed").textContent = "seeded";
+    $("bdg-seed").className = "badge on";
+    $("seed-chip").textContent = S.digestHex;
+    $("seed-chip").className = "";
+
+    // Live audio picks up the new bedrock by restarting cleanly.
+    if (ctx) { stopAudio(); startAudio(); }
+    persist();
+  }
+
+  function renderChain() {
+    const has = S.seed !== null;
+    $("chain-ver").textContent = "v" + NS.SCHEMA_VERSION;
+    const canon = $("v-canon"), dig = $("v-digest"),
+          sd = $("v-seed"), pr = $("v-prng");
+    if (!has) {
+      for (const el of [canon, dig, sd, pr]) {
+        el.textContent = "—";
+        el.classList.add("empty");
+      }
+      for (const id of ["step-canon","step-digest","step-seed","step-prng"]) {
+        $(id).classList.remove("live");
+      }
+      return;
+    }
+    canon.textContent = S.canonical;
+    dig.textContent = S.digestHex + " ⋯ 24 bytes discarded";
+    sd.textContent = "0x" + S.digestHex + "  ·  " + S.seed.toString(10);
+    pr.textContent = "state₀ = " + NS.seedLower32(S.seed);
+    for (const el of [canon, dig, sd, pr]) el.classList.remove("empty");
+    for (const id of ["step-canon","step-digest","step-seed","step-prng"]) {
+      $(id).classList.add("live");
+    }
+  }
+
+  function renderBedrockTable() {
+    const tb = $("tbl-bedrock").tBodies[0];
+    tb.textContent = "";
+    const keys = NS.LONGITUDE_KEYS.filter(
+      (k) => S.chart && k in S.chart && typeof S.chart[k] === "number");
+    keys.forEach((k, i) => {
+      const hz = S.bedrock[i];
+      const lon = ((S.chart[k] % 360) + 360) % 360;
+      const tr = document.createElement("tr");
+      const c1 = document.createElement("td"); c1.className = "k"; c1.textContent = k;
+      const c2 = document.createElement("td"); c2.className = "n";
+      c2.textContent = lon.toFixed(2) + "°";
+      const c3 = document.createElement("td"); c3.className = "n";
+      c3.textContent = hz.toFixed(2);
+      const c4 = document.createElement("td"); c4.className = "s";
+      c4.textContent = hzToNote(hz);
+      tr.append(c1, c2, c3, c4);
+      tb.appendChild(tr);
+    });
+    $("bedrock-count").textContent = S.bedrock.length + " voices";
+    if (S.binaural) {
+      $("v-carrier").textContent = fmtHz(S.binaural.carrier_hz);
+      $("v-beat").textContent = fmtHz(S.binaural.beat_hz);
+    }
+    if (S.bedrock.length) {
+      const lo = Math.min.apply(null, S.bedrock), hi = Math.max.apply(null, S.bedrock);
+      $("v-span").textContent = lo.toFixed(1) + " – " + hi.toFixed(1) + " Hz";
+    } else {
+      $("v-span").textContent = "—";
+    }
+  }
+
+  /* ------------------------------------------------------------------
+     Lattice — computed independently of the audio graph so the Lattice
+     view and the ghost table are meaningful before audio ever starts.
+     ------------------------------------------------------------------ */
+  function rebuildLattice() {
+    const n = S.sentinel.n;
+    S.word = NS.substitutionWord(Math.max(n, 1));
+    S.ghostBases = S.bedrock.length
+      ? NS.ghostPlacement(S.bedrock, n, S.sentinel.spread, S.word)
+      : [];
+    $("lat-word").textContent = n
+      ? S.word.slice(0, 12) + (S.word.length > 12 ? "…" : "")
+      : "—";
+    $("t-defect").textContent = NS.sturmianDefect(NS.substitutionWord(200)).toFixed(4);
+    renderGhostTable();
+  }
+
+  function renderGhostTable() {
+    const tb = $("tbl-ghost").tBodies[0];
+    tb.textContent = "";
+    S.ghostBases.forEach((base, i) => {
+      const live = S.ghosts[i] ? S.ghosts[i].current : 0;
+      const tr = document.createElement("tr");
+      const c1 = document.createElement("td"); c1.className = "k"; c1.textContent = i;
+      const c2 = document.createElement("td"); c2.className = "s";
+      c2.textContent = S.word[i % S.word.length] || "—";
+      const c3 = document.createElement("td"); c3.className = "n";
+      c3.textContent = base.toFixed(2);
+      const c4 = document.createElement("td"); c4.className = "n";
+      c4.textContent = live ? live.toFixed(2) : "—";
+      const c5 = document.createElement("td"); c5.className = "n";
+      c5.textContent = live ? (live - base >= 0 ? "+" : "") + (live - base).toFixed(2) : "—";
+      tr.append(c1, c2, c3, c4, c5);
+      tb.appendChild(tr);
+    });
+    if (S.ghostBases.length) {
+      const span = Math.max.apply(null, S.ghostBases) - Math.min.apply(null, S.ghostBases);
+      $("t-span").textContent = span.toFixed(2) + " Hz";
+    } else {
+      $("t-span").textContent = "0.00 Hz";
+    }
+  }
+
+  /* ==================================================================
+     AUDIO ENGINE
+     ================================================================== */
+  function makeCountingPRNG(seed) {
+    const base = NS.createNatalPRNG(seed);
+    return function () { S.draws++; return base(); };
+  }
+
+  function startAudio() {
+    if (ctx) { stopAudio(); return; }
+    if (S.bedrock.length === 0) {
+      setStatus($("engine-status"),
+        "anchor a natal seed first — bedrock comes from the chart", "warn");
+      return;
+    }
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.ratio.value = 6;
+    master = ctx.createGain();
+    master.gain.value = Number($("master-vol").value) / 100 * 0.6;
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 4096;
+    analyser.smoothingTimeConstant = 0.72;
+    freqData = new Uint8Array(analyser.frequencyBinCount);
+    master.connect(analyser);
+    master.connect(comp).connect(ctx.destination);
+
+    // Natal bedrock — frequency written once here and never again.
+    for (const f of S.bedrock) {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = NS.clampFrequency(f);
+      const g = ctx.createGain();
+      g.gain.value = 0.06;
+      osc.connect(g).connect(master);
+      osc.start();
+      bedrockNodes.push({ osc, g });
+    }
+    // Binaural pair, hard-panned.
+    if (S.binaural) {
+      for (const side of [-1, 1]) {
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = NS.clampFrequency(
+          S.binaural.carrier_hz + side * S.binaural.beat_hz / 2);
+        const g = ctx.createGain();
+        g.gain.value = 0.05;
+        const pan = ctx.createStereoPanner();
+        pan.pan.value = side;
+        osc.connect(g).connect(pan).connect(master);
+        osc.start();
+        binauralNodes.push({ osc, g, pan });
+      }
+    }
+    $("btn-audio").textContent = "Stop audio";
+    $("bdg-audio").textContent = "audio on";
+    $("bdg-audio").className = "badge on";
+    setStatus($("engine-status"),
+      "bedrock " + S.bedrock.length + " voices + binaural pair", "ok");
+    logEvent("audio_start", { bedrock_voices: S.bedrock.length });
+    if (S.sentinel.active) startSentinel();
+  }
+
+  function stopAudio() {
+    stopSentinel(false);
+    for (const n of bedrockNodes.concat(binauralNodes)) {
+      try { n.osc.stop(); } catch (err) { /* already stopped */ }
+    }
+    bedrockNodes = []; binauralNodes = [];
+    if (ctx) { try { ctx.close(); } catch (err) { /* closed */ } ctx = null; }
+    analyser = null; freqData = null; master = null;
+    $("btn-audio").textContent = "Start audio";
+    $("bdg-audio").textContent = "audio off";
+    $("bdg-audio").className = "badge";
+    setStatus($("engine-status"), "audio stopped");
+    logEvent("audio_stop", {});
+  }
+
+  function panic() {
+    stopAudio();
+    setStatus($("engine-status"), "panic — all output silenced", "warn");
+    logEvent("panic", {});
+  }
+
+  /* ------------------------------------------------------- sentinel */
+  function startSentinel() {
+    if (!ctx || S.seed === null) return;
+    stopSentinel(false);
+    // Deterministic replay: the generator restarts at every activation.
+    S.prng = makeCountingPRNG(S.seed);
+    S.draws = 0;
+    buildGhosts();
+    retargetGhosts();
+    entropyTimer = setInterval(retargetGhosts, ENTROPY_MS);
+    S.nextEntropyAt = performance.now() + ENTROPY_MS;
+  }
+
+  function buildGhosts() {
+    const n = S.sentinel.n;
+    const per = n > 0 ? GHOST_GAIN_TOTAL / Math.max(n, 8) : 0;
+    rebuildLattice();
+    const bases = S.ghostBases;
+    for (let i = 0; i < n; i++) {
+      const osc = ctx.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.value = bases[i];
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      g.gain.linearRampToValueAtTime(per, ctx.currentTime + 0.8);
+      osc.connect(g).connect(master);
+      osc.start();
+      S.ghosts.push({
+        osc, g, base: bases[i], current: bases[i],
+        sym: S.word[i % S.word.length],
+      });
+    }
+    logEvent("ghost_placement", {
+      voices: n,
+      order: "fibonacci",
+      sturmian_defect: NS.sturmianDefect(NS.substitutionWord(200)),
+      span_hz: n ? Number((Math.max.apply(null, bases) -
+                           Math.min.apply(null, bases)).toFixed(3)) : 0,
+    });
+  }
+
+  function retargetGhosts() {
+    if (!ctx || !S.prng || S.ghosts.length === 0) {
+      S.lastDev = { mean: 0, max: 0 };
+      return;
+    }
+    let sum = 0, max = 0;
+    S.ghosts.forEach((node, i) => {
+      // base is a lattice site derived from frozen bedrock. modulateFrequency
+      // reads it and returns a new value; it never writes through.
+      const target = NS.modulateFrequency(node.base, i, S.sentinel, S.prng);
+      node.current = target;
+      node.osc.frequency.linearRampToValueAtTime(
+        target, ctx.currentTime + ENTROPY_MS / 1000 * 0.9);
+      const dev = Math.abs(target - node.base);
+      sum += dev; max = Math.max(max, dev);
+    });
+    S.lastDev = { mean: sum / S.ghosts.length, max };
+    S.nextEntropyAt = performance.now() + ENTROPY_MS;
+    renderGhostTable();
+    logEvent("entropy_event", {
+      voices: S.ghosts.length,
+      deviation_mean_hz: Number(S.lastDev.mean.toFixed(3)),
+      deviation_max_hz: Number(S.lastDev.max.toFixed(3)),
+    });
+  }
+
+  function stopSentinel(log) {
+    if (entropyTimer) { clearInterval(entropyTimer); entropyTimer = null; }
+    for (const n of S.ghosts) {
+      try {
+        n.g.gain.cancelScheduledValues(ctx ? ctx.currentTime : 0);
+        n.g.gain.value = 0;
+        n.osc.stop();
+      } catch (err) { /* already stopped */ }
+    }
+    S.ghosts = [];
+    S.lastDev = { mean: 0, max: 0 };
+    S.nextEntropyAt = 0;
+    renderGhostTable();
+    if (log) {
+      logEvent("deviation_summary", {
+        note: "overlay stopped; output restored to pure natal baseline",
+      });
+    }
+  }
+
+  function setSentinelActive(on) {
+    S.sentinel.active = !!on;
+    $("sentinel-fields").disabled = !on;
+    $("btn-sentinel").textContent = on ? "Disable sentinel" : "Enable sentinel";
+    $("bdg-sentinel").textContent = on ? "sentinel on" : "sentinel off";
+    $("bdg-sentinel").className = on ? "badge hot" : "badge";
+    if (on) {
+      if (S.seed === null) {
+        setStatus($("sentinel-status"), "anchor a seed before enabling", "warn");
+      } else {
+        setStatus($("sentinel-status"),
+          ctx ? "overlay live" : "armed — start audio to hear it", "ok");
+      }
+      if (ctx) startSentinel();
+    } else {
+      stopSentinel(true);
+      setStatus($("sentinel-status"), "output is pure natal bedrock");
+    }
+    logEvent("sentinel_toggle", { active: S.sentinel.active });
+    persist();
+  }
+
+  function readSliders() {
+    const next = NS.clampSentinelParams({
+      active: S.sentinel.active,
+      n: Number($("s-n").value),
+      k: Number($("s-k").value),
+      perturb: Number($("s-perturb").value),
+      spread: Number($("s-spread").value),
+    });
+    const nChanged = next.n !== S.sentinel.n;
+    const spreadChanged = next.spread !== S.sentinel.spread;
+    S.sentinel = next;
+    $("k-n").textContent = String(next.n);
+    $("k-k").textContent = next.k.toFixed(2);
+    $("k-perturb").textContent = next.perturb.toFixed(1);
+    const u = document.createElement("span"); u.className = "kunit"; u.textContent = " Hz";
+    $("k-perturb").appendChild(u);
+    $("k-spread").textContent = next.spread.toFixed(2);
+    return { nChanged, spreadChanged };
+  }
+
+  function onSliderInput() {
+    const { nChanged, spreadChanged } = readSliders();
+    if (nChanged || spreadChanged) {
+      rebuildLattice();
+      // n or spread changed the placement: rebuild the bank deterministically.
+      if (S.sentinel.active && ctx) startSentinel();
+    }
+    if (codex.classList.contains("show") && codexAnchor) {
+      openCodex(codexAnchor.getAttribute("data-info"), codexAnchor);
+    }
+  }
+
+  function syncSentinelUI() {
+    $("s-n").value = S.sentinel.n;
+    $("s-k").value = S.sentinel.k;
+    $("s-perturb").value = S.sentinel.perturb;
+    $("s-spread").value = S.sentinel.spread;
+    readSliders();
+    $("sentinel-fields").disabled = !S.sentinel.active;
+    $("btn-sentinel").textContent = S.sentinel.active ? "Disable sentinel" : "Enable sentinel";
+    $("bdg-sentinel").textContent = S.sentinel.active ? "sentinel on" : "sentinel off";
+    $("bdg-sentinel").className = S.sentinel.active ? "badge hot" : "badge";
+  }
+
+  /* ==================================================================
+     STAGE — canvas sizing, camera, view dispatch
+     ================================================================== */
+  const stage = $("stage");
+  const g = stage.getContext("2d");
+  let W = 0, H = 0, DPR = 1;
+
+  function resizeStage() {
+    const r = stage.parentElement.getBoundingClientRect();
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(1, Math.floor(r.width));
+    H = Math.max(1, Math.floor(r.height));
+    stage.width = Math.floor(W * DPR);
+    stage.height = Math.floor(H * DPR);
+    stage.style.width = W + "px";
+    stage.style.height = H + "px";
+    g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", resizeStage);
+
+  // Cymatic camera
+  const cam = { theta: 0.8, phi: 1.15, zoom: 1.0, drag: false, px: 0, py: 0 };
+  stage.addEventListener("pointerdown", (e) => {
+    if (S.view !== "cymatic") return;
+    cam.drag = true; cam.px = e.clientX; cam.py = e.clientY;
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener("pointerup", (e) => {
+    cam.drag = false;
+    try { stage.releasePointerCapture(e.pointerId); } catch (err) { /* noop */ }
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!cam.drag || S.view !== "cymatic") return;
+    cam.theta += (e.clientX - cam.px) * 0.006;
+    cam.phi = Math.max(0.16, Math.min(Math.PI - 0.16,
+                                      cam.phi - (e.clientY - cam.py) * 0.006));
+    cam.px = e.clientX; cam.py = e.clientY;
+  });
+  stage.addEventListener("wheel", (e) => {
+    if (S.view !== "cymatic") return;
+    e.preventDefault();
+    cam.zoom = Math.max(0.55, Math.min(2.2, cam.zoom - e.deltaY * 0.0012));
+  }, { passive: false });
+
+  const VIEW_NOTE = {
+    field: "bedrock rings — radius is log-frequency · dashed rings are sentinel ghosts, wobble ∝ drift",
+    lattice: "Fibonacci word · ghost sites on a log axis · step-ratio spectrum against powers of τ",
+    cymatic: "spherical-harmonic nodal field — drag to rotate, scroll to zoom",
+    spectrum: "live FFT of the master bus — blue marks are bedrock, gold are ghosts",
+    sigil: "deterministic glyph of the 64-bit seed",
+  };
+
+  function setView(v) {
+    if (!VIEW_NOTE[v]) return;
+    S.view = v;
+    for (const t of document.querySelectorAll(".vtab")) {
+      t.classList.toggle("sel", t.getAttribute("data-view") === v);
+    }
+    $("view-info").setAttribute("data-info", "view-" + v);
+    $("stage-note").textContent = VIEW_NOTE[v];
+    stage.classList.toggle("grab", v === "cymatic");
+    if (codex.classList.contains("show") && codexAnchor === $("view-info")) {
+      openCodex("view-" + v, $("view-info"));
+    }
+  }
+
+  /* ------------------------------------------------------- helpers */
+  const LOG_LO = Math.log2(NS.FREQ_MIN_HZ);
+  const LOG_SPAN = Math.log2(NS.FREQ_MAX_HZ) - LOG_LO;
+  function logPos(hz) {   // 0..1 across the audible clamp band
+    return Math.max(0, Math.min(1, (Math.log2(Math.max(hz, 1)) - LOG_LO) / LOG_SPAN));
+  }
+  function fade(a) { g.fillStyle = "rgba(5,5,11," + a + ")"; g.fillRect(0, 0, W, H); }
+  function emptyMsg(text) {
+    g.fillStyle = "rgba(140,140,178,.75)";
+    g.font = "12px ui-monospace, Menlo, monospace";
+    g.textAlign = "center";
+    g.fillText(text, W / 2, H / 2);
+    g.textAlign = "left";
+  }
+
+  /* ------------------------------------------------------ view: field */
+  function drawField(t) {
+    fade(0.30);
+    if (!S.bedrock.length) { emptyMsg("anchor a natal seed to raise the field"); return; }
+    const cx = W / 2, cy = H / 2;
+    const maxR = Math.min(W, H) * 0.44;
+    const rot = NS.clampVisualModulationHz(0.05);
+
+    // Bedrock: fixed rings, one orbiting marker each.
+    S.bedrock.forEach((f, i) => {
+      const r = 26 + logPos(f) * maxR * 1.9;
+      g.beginPath();
+      g.strokeStyle = "rgba(126,200,227,0.40)";
+      g.lineWidth = 1.2;
+      g.arc(cx, cy, r, 0, TAU);
+      g.stroke();
+      const a = t * rot * TAU + i * (TAU / Math.max(S.bedrock.length, 1));
+      const mx = cx + Math.cos(a) * r, my = cy + Math.sin(a) * r;
+      g.beginPath();
+      g.fillStyle = "#7ec8e3";
+      g.arc(mx, my, 3, 0, TAU);
+      g.fill();
+      g.fillStyle = "rgba(126,200,227,.55)";
+      g.font = "9px ui-monospace, Menlo, monospace";
+      g.fillText(f.toFixed(1), mx + 6, my + 3);
+    });
+
+    // Ghosts: dashed rings, radius wobbles with live drift.
+    if (S.sentinel.active && S.ghosts.length) {
+      const grot = NS.clampVisualModulationHz(0.08 + S.sentinel.spread * 0.05);
+      g.setLineDash([4, 6]);
+      S.ghosts.forEach((node, i) => {
+        const baseR = 20 + (i / Math.max(S.ghosts.length, 1)) * maxR *
+                      (1 + S.sentinel.spread * 0.06);
+        const wob = Math.min(Math.abs(node.current - node.base), 30) * 0.7;
+        const r = Math.max(4, baseR + Math.sin(t * grot * TAU + i) * wob);
+        g.beginPath();
+        g.strokeStyle = "rgba(215,185,122," + (0.14 + 0.2 * (wob / 22)).toFixed(3) + ")";
+        g.lineWidth = 1;
+        g.arc(cx, cy, r, 0, TAU);
+        g.stroke();
+      });
+      g.setLineDash([]);
+    }
+
+    // Binaural axis.
+    if (S.binaural) {
+      g.strokeStyle = "rgba(215,185,122,.14)";
+      g.lineWidth = 1;
+      g.beginPath(); g.moveTo(cx - maxR, cy); g.lineTo(cx + maxR, cy); g.stroke();
+    }
+  }
+
+  /* ----------------------------------------------------- view: lattice */
+  function drawLattice(t) {
+    g.fillStyle = "#05050b"; g.fillRect(0, 0, W, H);
+    if (!S.ghostBases.length) {
+      emptyMsg(S.bedrock.length ? "raise n above zero to build the lattice"
+                                : "anchor a natal seed to build the lattice");
+      return;
+    }
+    const pad = 34, innerW = W - pad * 2;
+    const mono = "10px ui-monospace, Menlo, monospace";
+
+    // --- band 1: the substitution word ---
+    const wy = 42;
+    g.fillStyle = "rgba(140,140,178,.8)"; g.font = mono;
+    g.fillText("FIBONACCI WORD   L → LS   S → L", pad, wy - 14);
+    const n = S.ghostBases.length;
+    const cellW = Math.min(18, innerW / Math.max(n, 1));
+    for (let i = 0; i < n; i++) {
+      const sym = S.word[i % S.word.length];
+      const x = pad + i * cellW;
+      g.fillStyle = sym === "L" ? "rgba(126,200,227,.55)" : "rgba(215,185,122,.5)";
+      g.fillRect(x, wy, Math.max(1, cellW - 2), sym === "L" ? 16 : 9);
+      if (cellW > 11) {
+        g.fillStyle = "#05050b";
+        g.font = "8px ui-monospace, Menlo, monospace";
+        g.fillText(sym, x + cellW / 2 - 2.5, wy + 8);
+      }
+    }
+
+    // --- band 2: ghost sites on a log-frequency axis ---
+    const ay = wy + 62, aH = Math.max(70, H * 0.34);
+    g.strokeStyle = "rgba(37,37,63,1)"; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(pad, ay + aH); g.lineTo(W - pad, ay + aH); g.stroke();
+    g.fillStyle = "rgba(140,140,178,.8)"; g.font = mono;
+    g.fillText("GHOST SITES — log Hz", pad, ay - 8);
+
+    const lo = Math.min.apply(null, S.ghostBases) * 0.92;
+    const hi = Math.max.apply(null, S.ghostBases) * 1.08;
+    const lgLo = Math.log2(lo), lgSpan = Math.max(1e-6, Math.log2(hi) - lgLo);
+    const xOf = (hz) => pad + ((Math.log2(hz) - lgLo) / lgSpan) * innerW;
+
+    // bedrock reference lines
+    for (const f of S.bedrock) {
+      if (f < lo || f > hi) continue;
+      const x = xOf(f);
+      g.strokeStyle = "rgba(126,200,227,.22)";
+      g.beginPath(); g.moveTo(x, ay); g.lineTo(x, ay + aH); g.stroke();
+    }
+    // sites
+    S.ghostBases.forEach((base, i) => {
+      const x = xOf(base);
+      const y = ay + aH - (i / Math.max(n - 1, 1)) * (aH - 12) - 6;
+      g.strokeStyle = "rgba(215,185,122,.42)";
+      g.beginPath(); g.moveTo(x, ay + aH); g.lineTo(x, y); g.stroke();
+      g.fillStyle = "#d7b97a";
+      g.beginPath(); g.arc(x, y, 2.4, 0, TAU); g.fill();
+      const live = S.ghosts[i] ? S.ghosts[i].current : 0;
+      if (live) {
+        const lx = xOf(Math.max(lo, Math.min(hi, live)));
+        g.fillStyle = "rgba(127,214,164,.9)";
+        g.beginPath(); g.arc(lx, y, 1.9, 0, TAU); g.fill();
+        g.strokeStyle = "rgba(127,214,164,.35)";
+        g.beginPath(); g.moveTo(x, y); g.lineTo(lx, y); g.stroke();
+      }
+    });
+    g.fillStyle = "rgba(92,92,126,.9)"; g.font = "9px ui-monospace, Menlo, monospace";
+    g.fillText(lo.toFixed(1) + " Hz", pad, ay + aH + 12);
+    const hiLbl = hi.toFixed(1) + " Hz";
+    g.fillText(hiLbl, W - pad - g.measureText(hiLbl).width, ay + aH + 12);
+
+    // --- band 3: step-ratio spectrum against powers of tau ---
+    const sy = ay + aH + 44, sH = Math.max(48, H - sy - 40);
+    g.fillStyle = "rgba(140,140,178,.8)"; g.font = mono;
+    g.fillText("STEP RATIOS  baseⱼ₊₁ / baseⱼ   —   two values ⇒ Pisot", pad, sy - 8);
+    const rL = 1 + 0.04 * S.sentinel.spread;
+    const rS = 1 + 0.04 * S.sentinel.spread / PHI;
+    const rMin = Math.min(rL, rS) - 0.008, rMax = Math.max(rL, rS) + 0.008;
+    const yOf = (r) => sy + sH - ((r - rMin) / Math.max(rMax - rMin, 1e-9)) * sH;
+
+    for (const [ref, col, lbl] of [[rL, "rgba(126,200,227,.5)", "r_L"],
+                                   [rS, "rgba(215,185,122,.5)", "r_S"]]) {
+      const y = yOf(ref);
+      g.strokeStyle = col; g.setLineDash([3, 4]); g.lineWidth = 1;
+      g.beginPath(); g.moveTo(pad, y); g.lineTo(W - pad, y); g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = col;
+      g.font = "9px ui-monospace, Menlo, monospace";
+      g.fillText(lbl + " " + ref.toFixed(5), W - pad - 74, y - 4);
+    }
+    for (let i = 0; i + 1 < n; i++) {
+      const ratio = S.ghostBases[i + 1] / S.ghostBases[i];
+      if (!isFinite(ratio)) continue;
+      const x = pad + (i / Math.max(n - 2, 1)) * innerW;
+      const y = Math.max(sy, Math.min(sy + sH, yOf(ratio)));
+      const sym = S.word[i % S.word.length];
+      g.fillStyle = sym === "L" ? "#7ec8e3" : "#d7b97a";
+      g.beginPath(); g.arc(x, y, 2.6, 0, TAU); g.fill();
+    }
+  }
+
+  /* ----------------------------------------------------- view: cymatic */
+  function factorial(x) { let r = 1; for (let i = 2; i <= x; i++) r *= i; return r; }
+  function assocLegendre(l, m, x) {
+    m = Math.abs(m);
+    if (m > l) return 0;
+    let pmm = 1;
+    if (m > 0) {
+      const somx2 = Math.sqrt(Math.max(0, (1 - x) * (1 + x)));
+      let fact = 1;
+      for (let i = 1; i <= m; i++) { pmm *= -fact * somx2; fact += 2; }
+    }
+    if (l === m) return pmm;
+    let pmmp1 = x * (2 * m + 1) * pmm;
+    if (l === m + 1) return pmmp1;
+    let pll = 0;
+    for (let ll = m + 2; ll <= l; ll++) {
+      pll = ((2 * ll - 1) * x * pmmp1 - (ll + m - 1) * pmm) / (ll - m);
+      pmm = pmmp1; pmmp1 = pll;
+    }
+    return pll;
+  }
+  function ylm(l, m, theta, phi) {
+    const a = Math.abs(m);
+    if (a > l) return 0;
+    const norm = Math.sqrt(((2 * l + 1) / (4 * Math.PI)) *
+                           (factorial(l - a) / factorial(l + a)));
+    const y = norm * assocLegendre(l, a, Math.cos(theta));
+    if (m === 0) return y;
+    if (m > 0) return Math.SQRT2 * y * Math.cos(a * phi);
+    return Math.SQRT2 * y * Math.sin(a * phi) * (a % 2 === 0 ? 1 : -1);
+  }
+
+  // Fibonacci sphere, built once.
+  const SPH_N = 2400;
+  const SPH = new Float32Array(SPH_N * 2);   // theta, phi
+  (function buildSphere() {
+    const ga = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < SPH_N; i++) {
+      const y = 1 - (i / (SPH_N - 1)) * 2;
+      SPH[i * 2] = Math.acos(Math.max(-1, Math.min(1, y)));
+      SPH[i * 2 + 1] = (ga * i) % TAU;
+    }
+  })();
+
+  // Mode assignment uses its own generator seeded from the same seed, so it
+  // is deterministic without consuming draws from the sentinel stream — the
+  // parity-critical draw count must not depend on which view is open.
+  let cymModes = [];
+  function rebuildCymModes() {
+    cymModes = [];
+    if (S.seed === null || !S.bedrock.length) return;
+    const r = NS.createNatalPRNG(S.seed);
+    const src = S.bedrock.concat(S.ghostBases.slice(0, 8));
+    src.forEach((f, i) => {
+      const l = 1 + Math.floor(r() * 8);
+      let m = Math.floor(r() * (l + 1));
+      if (r() > 0.5) m = -m;
+      cymModes.push({
+        l, m,
+        amp: 0.16 + (i < S.bedrock.length ? 0.12 : 0.05) * r(),
+        phase: r() * TAU,
+        vhz: NS.clampVisualModulationHz(0.04 + (f % 17) / 17 * 0.22),
+        ghost: i >= S.bedrock.length,
+      });
+    });
+  }
+
+  const projBuf = [];
+  function drawCymatic(t) {
+    fade(0.34);
+    if (!cymModes.length) { emptyMsg("anchor a natal seed to raise the field"); return; }
+    const cx = W / 2, cy = H / 2;
+    const R = Math.min(W, H) * 0.36 * cam.zoom;
+    const ct = Math.cos(cam.theta), st = Math.sin(cam.theta);
+    const cp = Math.cos(cam.phi), sp = Math.sin(cam.phi);
+    const deform = 0.42;
+
+    projBuf.length = 0;
+    let energy = 0;
+    for (let i = 0; i < SPH_N; i++) {
+      const th = SPH[i * 2], ph = SPH[i * 2 + 1];
+      let v = 0;
+      for (let k = 0; k < cymModes.length; k++) {
+        const md = cymModes[k];
+        const wave = Math.sin(t * md.vhz * TAU + md.phase);
+        v += md.amp * ylm(md.l, md.m, th, ph) * wave;
+      }
+      energy += Math.abs(v);
+      const rr = 1 + v * deform;
+      // unit sphere -> world
+      const sx = Math.sin(th) * Math.cos(ph) * rr;
+      const sy = Math.cos(th) * rr;
+      const sz = Math.sin(th) * Math.sin(ph) * rr;
+      // yaw then pitch
+      const x1 = sx * ct - sz * st;
+      const z1 = sx * st + sz * ct;
+      const y2 = sy * sp - z1 * cp;
+      const z2 = sy * cp + z1 * sp;
+      projBuf.push({ x: cx + x1 * R, y: cy + y2 * R, z: z2, v });
+    }
+    projBuf.sort((a, b) => a.z - b.z);
+
+    for (let i = 0; i < projBuf.length; i++) {
+      const p = projBuf[i];
+      const depth = (p.z + 1.6) / 3.2;            // 0 back .. 1 front
+      const mag = Math.min(1, Math.abs(p.v) * 3.4);
+      const sz = 0.7 + depth * 1.9 + mag * 1.5;
+      const alpha = (0.10 + depth * 0.42) * (0.28 + mag * 0.85);
+      // warm antinode / cool antinode, dark at the nodal seams
+      g.fillStyle = p.v > 0
+        ? "rgba(" + (150 + mag * 105 | 0) + "," + (130 + mag * 80 | 0) + "," + (80 + mag * 40 | 0) + "," + alpha.toFixed(3) + ")"
+        : "rgba(" + (70 + mag * 60 | 0) + "," + (140 + mag * 90 | 0) + "," + (180 + mag * 75 | 0) + "," + alpha.toFixed(3) + ")";
+      g.fillRect(p.x, p.y, sz, sz);
+    }
+    S.cymEnergy = energy / SPH_N;
+  }
+
+  /* ---------------------------------------------------- view: spectrum */
+  function drawSpectrum() {
+    g.fillStyle = "#05050b"; g.fillRect(0, 0, W, H);
+    const pad = 34, innerW = W - pad * 2;
+    const base = H - 34;
+    if (!analyser) {
+      emptyMsg("start audio to measure the output");
+      return;
+    }
+    analyser.getByteFrequencyData(freqData);
+    const sr = ctx.sampleRate, bins = analyser.frequencyBinCount;
+    const binHz = sr / analyser.fftSize;
+
+    // grid
+    g.strokeStyle = "rgba(37,37,63,.85)"; g.lineWidth = 1;
+    g.font = "9px ui-monospace, Menlo, monospace";
+    for (const f of [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 18000]) {
+      const x = pad + logPos(f) * innerW;
+      g.beginPath(); g.moveTo(x, 20); g.lineTo(x, base); g.stroke();
+      g.fillStyle = "rgba(92,92,126,.9)";
+      g.fillText(f >= 1000 ? (f / 1000) + "k" : String(f), x + 2, base + 12);
+    }
+
+    // spectrum, log-x
+    g.beginPath();
+    g.moveTo(pad, base);
+    for (let i = 1; i < bins; i++) {
+      const f = i * binHz;
+      if (f < NS.FREQ_MIN_HZ) continue;
+      if (f > NS.FREQ_MAX_HZ) break;
+      const x = pad + logPos(f) * innerW;
+      const y = base - (freqData[i] / 255) * (base - 26);
+      g.lineTo(x, y);
+    }
+    g.lineTo(W - pad, base);
+    g.closePath();
+    g.fillStyle = "rgba(126,200,227,.14)";
+    g.fill();
+    g.strokeStyle = "rgba(126,200,227,.75)";
+    g.lineWidth = 1.2;
+    g.stroke();
+
+    // markers
+    function mark(hz, col, label) {
+      const x = pad + logPos(hz) * innerW;
+      g.strokeStyle = col; g.lineWidth = 1;
+      g.setLineDash([2, 4]);
+      g.beginPath(); g.moveTo(x, 20); g.lineTo(x, base); g.stroke();
+      g.setLineDash([]);
+      if (label) {
+        g.fillStyle = col;
+        g.save(); g.translate(x + 3, 30); g.rotate(Math.PI / 2);
+        g.fillText(label, 0, 0); g.restore();
+      }
+    }
+    const keys = NS.LONGITUDE_KEYS.filter(
+      (k) => S.chart && k in S.chart && typeof S.chart[k] === "number");
+    S.bedrock.forEach((f, i) => mark(f, "rgba(126,200,227,.5)", keys[i] || ""));
+    for (const n of S.ghosts) mark(n.current, "rgba(215,185,122,.36)", "");
+    if (S.binaural) {
+      mark(S.binaural.carrier_hz, "rgba(127,214,164,.55)", "carrier");
+    }
+  }
+
+  /* ------------------------------------------------------- view: sigil */
+  function paintSigil(cg, cw, ch, seed, bedrock, word, t) {
+    cg.clearRect(0, 0, cw, ch);
+    const cx = cw / 2, cy = ch / 2;
+    const R = Math.min(cw, ch) * 0.40;
+    if (seed === null) return;
+    const hex = NS.seedToHex(seed);
+    const nib = [];
+    for (let i = 0; i < 16; i++) nib.push(parseInt(hex[i], 16));
+
+    // inner rings from the bedrock
+    if (bedrock && bedrock.length) {
+      for (let i = 0; i < bedrock.length; i++) {
+        const r = R * (0.16 + logPos(bedrock[i]) * 0.5);
+        cg.beginPath();
+        cg.strokeStyle = "rgba(126,200,227,.16)";
+        cg.lineWidth = Math.max(0.5, cw / 300);
+        cg.arc(cx, cy, r, 0, TAU);
+        cg.stroke();
+      }
+    }
+    // outline: 16 radii, one per nibble
+    const pts = nib.map((v, i) => {
+      const a = (i / 16) * TAU - Math.PI / 2 + (t || 0) * 0.02;
+      const rho = R * (0.42 + (v / 15) * 0.58);
+      return [cx + Math.cos(a) * rho, cy + Math.sin(a) * rho];
+    });
+    cg.beginPath();
+    pts.forEach(([x, y], i) => (i ? cg.lineTo(x, y) : cg.moveTo(x, y)));
+    cg.closePath();
+    cg.strokeStyle = "rgba(215,185,122,.85)";
+    cg.lineWidth = Math.max(0.8, cw / 190);
+    cg.stroke();
+    cg.fillStyle = "rgba(215,185,122,.07)";
+    cg.fill();
+
+    // chords: every nibble linked to the site that many steps on
+    cg.strokeStyle = "rgba(126,200,227,.30)";
+    cg.lineWidth = Math.max(0.4, cw / 420);
+    for (let i = 0; i < 16; i++) {
+      const j = (i + 1 + (nib[i] % 7)) % 16;
+      cg.beginPath();
+      cg.moveTo(pts[i][0], pts[i][1]);
+      cg.lineTo(pts[j][0], pts[j][1]);
+      cg.stroke();
+    }
+    // rim marks placed by the Fibonacci word
+    if (word) {
+      for (let i = 0; i < 32; i++) {
+        const sym = word[i % word.length];
+        const a = (i / 32) * TAU - Math.PI / 2;
+        const r0 = R * 1.03, r1 = R * (sym === "L" ? 1.13 : 1.08);
+        cg.beginPath();
+        cg.strokeStyle = sym === "L" ? "rgba(126,200,227,.5)" : "rgba(215,185,122,.42)";
+        cg.lineWidth = Math.max(0.5, cw / 340);
+        cg.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+        cg.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+        cg.stroke();
+      }
+    }
+    // vertices
+    pts.forEach(([x, y]) => {
+      cg.beginPath();
+      cg.fillStyle = "#d7b97a";
+      cg.arc(x, y, Math.max(1, cw / 220), 0, TAU);
+      cg.fill();
+    });
+  }
+
+  function drawSigilView(t) {
+    g.fillStyle = "#05050b"; g.fillRect(0, 0, W, H);
+    if (S.seed === null) { emptyMsg("anchor a natal seed to cast its sigil"); return; }
+    paintSigil(g, W, H, S.seed, S.bedrock, S.word, t);
+    g.fillStyle = "rgba(215,185,122,.9)";
+    g.font = "13px ui-monospace, Menlo, monospace";
+    g.textAlign = "center";
+    g.fillText(NS.seedToHex(S.seed), W / 2, H - 22);
+    g.fillStyle = "rgba(92,92,126,.9)";
+    g.font = "9px ui-monospace, Menlo, monospace";
+    g.fillText("uint64 " + S.seed.toString(10), W / 2, H - 8);
+    g.textAlign = "left";
+  }
+
+  const chipCanvas = $("sigil-chip");
+  const chipG = chipCanvas.getContext("2d");
+  function drawSigilChip() {
+    paintSigil(chipG, chipCanvas.width, chipCanvas.height, S.seed, S.bedrock, S.word, 0);
+  }
+
+  /* ==================================================================
+     RENDER LOOP + TELEMETRY
+     ================================================================== */
+  let lastFrame = performance.now(), fpsAcc = 0, fpsN = 0, telAcc = 0;
+
+  function frame(nowMs) {
+    const dt = nowMs - lastFrame;
+    lastFrame = nowMs;
+    fpsAcc += dt; fpsN++;
+    const t = nowMs / 1000;
+
+    if (W !== stage.parentElement.clientWidth ||
+        H !== stage.parentElement.clientHeight) resizeStage();
+
+    switch (S.view) {
+      case "field":    drawField(t); break;
+      case "lattice":  drawLattice(t); break;
+      case "cymatic":  drawCymatic(t); break;
+      case "spectrum": drawSpectrum(); break;
+      case "sigil":    drawSigilView(t); break;
+    }
+
+    telAcc += dt;
+    if (telAcc > 250) {
+      telAcc = 0;
+      if (fpsN) { S.fps = 1000 / (fpsAcc / fpsN); fpsAcc = 0; fpsN = 0; }
+      updateTelemetry();
+      updateHUD();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function updateTelemetry() {
+    $("t-dev-mean").textContent = S.lastDev.mean.toFixed(2) + " Hz";
+    $("t-dev-max").textContent = S.lastDev.max.toFixed(2) + " Hz";
+    $("t-draws").textContent = String(S.draws);
+    $("t-fps").textContent = S.fps ? S.fps.toFixed(0) + " fps" : "—";
+    $("t-next").textContent = S.nextEntropyAt
+      ? Math.max(0, (S.nextEntropyAt - performance.now()) / 1000).toFixed(1) + " s"
+      : "—";
+  }
+
+  function updateHUD() {
+    const hud = $("stage-hud");
+    hud.textContent = "";
+    const lines = [];
+    if (S.seed !== null) lines.push(["seed", NS.seedToHex(S.seed)]);
+    if (S.view === "field" || S.view === "spectrum") {
+      lines.push(["bedrock", S.bedrock.length + " voices"]);
+      if (S.binaural) lines.push(["beat", S.binaural.beat_hz.toFixed(2) + " Hz"]);
+    }
+    if (S.view === "lattice") {
+      lines.push(["sites", String(S.ghostBases.length)]);
+      lines.push(["defect", NS.sturmianDefect(NS.substitutionWord(200)).toFixed(4)]);
+    }
+    if (S.view === "cymatic") {
+      lines.push(["modes", String(cymModes.length)]);
+      lines.push(["energy", (S.cymEnergy || 0).toFixed(4)]);
+    }
+    if (S.sentinel.active) lines.push(["drift", S.lastDev.mean.toFixed(2) + " Hz"]);
+    for (const [k, v] of lines) {
+      const d = document.createElement("div");
+      d.appendChild(document.createTextNode(k + " "));
+      const b = document.createElement("b");
+      b.textContent = v;
+      d.appendChild(b);
+      hud.appendChild(d);
+    }
+  }
+
+  /* ==================================================================
+     STATE I/O — same shape as the Python CLI and the enhanced page.
+     ================================================================== */
+  function exportState() {
+    const includeChart = $("opt-include-chart").checked;
+    let state = {
+      schema_version: NS.SCHEMA_VERSION,
+      timestamp_utc: new Date().toISOString(),
+      natal_seed_intention: includeChart ? S.intention : "",
+      sentinel: S.sentinel,
+      seed_hex: S.seed !== null ? NS.seedToHex(S.seed) : undefined,
+      temporal_trace: S.trace,
+    };
+    if (includeChart && S.chart) {
+      state.natal_chart = S.chart;      // explicit opt-in only
+    } else {
+      state = NS.redactState(state);    // default path
+    }
+    logEvent("state_export", { redacted: !includeChart });
+    const blob = new Blob([JSON.stringify(state, null, 2)],
+                          { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "resonarium-state-" + Date.now() + ".json";
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus($("io-status"),
+      includeChart ? "exported WITH raw chart and intention"
+                   : "exported — redacted", includeChart ? "warn" : "ok");
+  }
+
+  function importState(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const raw = JSON.parse(String(reader.result));
+        const incoming = NS.redactState(raw);   // never ingest chart via state
+        S.sentinel = NS.clampSentinelParams(incoming.sentinel || {});
+        if (S.sentinel.active && S.seed === null) S.sentinel.active = false;
+        syncSentinelUI();
+        rebuildLattice();
+        if (S.sentinel.active && ctx) startSentinel();
+        logEvent("state_import", {
+          n: S.sentinel.n, k: S.sentinel.k,
+          perturb: S.sentinel.perturb, spread: S.sentinel.spread,
+        });
+        setStatus($("io-status"),
+          "imported — chart data, if present, was stripped", "ok");
+      } catch (err) {
+        setStatus($("io-status"), "import failed — not a valid state file", "bad");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  /* -------------------------------------------------------- snapshots */
+  function takeSnapshot() {
+    if (S.seed === null) {
+      setStatus($("io-status"), "anchor a seed before snapshotting", "warn");
+      return;
+    }
+    S.snapshots.push({
+      seed_hex: NS.seedToHex(S.seed),
+      sentinel: Object.assign({}, S.sentinel),
+      at: new Date().toISOString().slice(11, 19),
+    });
+    if (S.snapshots.length > 12) S.snapshots.shift();
+    renderSnapshots();
+    logEvent("snapshot", { count: S.snapshots.length });
+  }
+
+  function renderSnapshots() {
+    const box = $("snaplist");
+    box.textContent = "";
+    if (!S.snapshots.length) { box.textContent = "no snapshots"; return; }
+    S.snapshots.slice().reverse().forEach((sn) => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:6px;align-items:center;padding:2px 0";
+      const lab = document.createElement("span");
+      lab.style.cssText = "flex:1;color:var(--dim)";
+      lab.textContent = sn.at + "  n" + sn.sentinel.n +
+        " k" + sn.sentinel.k.toFixed(2) + " p" + sn.sentinel.perturb.toFixed(1) +
+        " s" + sn.sentinel.spread.toFixed(2);
+      const btn = document.createElement("button");
+      btn.className = "sm";
+      btn.textContent = "recall";
+      btn.addEventListener("click", () => {
+        S.sentinel = NS.clampSentinelParams(sn.sentinel);
+        syncSentinelUI();
+        rebuildLattice();
+        if (S.sentinel.active && ctx) startSentinel();
+        logEvent("snapshot_recall", { n: S.sentinel.n });
+      });
+      row.append(lab, btn);
+      box.appendChild(row);
+    });
+  }
+
+  /* ------------------------------------------------------ persistence */
+  // Sentinel parameters and view only. Chart, intention, and seed are never
+  // written to storage — the seed is safe to share but useless without the
+  // chart, so persisting it would add exposure for no benefit.
+  function persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        schema_version: NS.SCHEMA_VERSION,
+        sentinel: S.sentinel,
+        view: S.view,
+        volume: Number($("master-vol").value),
+      }));
+    } catch (err) { /* storage unavailable — not fatal */ }
+  }
+
+  function restore() {
+    let raw;
+    try { raw = localStorage.getItem(STORAGE_KEY); } catch (err) { return; }
+    if (!raw) return;
+    try {
+      const o = JSON.parse(raw);
+      S.sentinel = NS.clampSentinelParams(o.sentinel || {});
+      S.sentinel.active = false;   // never auto-start the overlay
+      if (o.view && VIEW_NOTE[o.view]) S.view = o.view;
+      if (typeof o.volume === "number") {
+        $("master-vol").value = Math.max(0, Math.min(100, o.volume));
+      }
+    } catch (err) { /* ignore malformed */ }
+  }
+
+  /* ==================================================================
+     WIRING
+     ================================================================== */
+  $("gate-accept").addEventListener("click", () => {
+    $("gate").style.display = "none";
+    resizeStage();
+    logEvent("session_start", { schema_version: NS.SCHEMA_VERSION });
+  });
+
+  $("btn-demo").addEventListener("click", () => {
+    $("chart-json").value = JSON.stringify(DEMO_CHART);
+    if (!$("intention").value) $("intention").value = "clarity";
+    setStatus($("anchor-status"), "demo chart loaded — press Anchor");
+  });
+
+  $("btn-random").addEventListener("click", () => {
+    // Exploratory only. Uses Math.random deliberately: this generates a NEW
+    // chart to explore, it is not part of any derivation. Once anchored, the
+    // resulting seed is as deterministic as any other.
+    const c = {};
+    for (const k of ["sun","moon","mercury","venus","mars","asc","mc"]) {
+      c[k] = Number((Math.random() * 360).toFixed(2));
+    }
+    c.aspects_sum = Number((Math.random() * 2000).toFixed(1));
+    $("chart-json").value = JSON.stringify(c);
+    setStatus($("anchor-status"), "random chart generated — press Anchor");
+  });
+
+  $("btn-clear-chart").addEventListener("click", () => {
+    $("chart-json").value = "";
+    $("intention").value = "";
+    setStatus($("anchor-status"), "");
+  });
+
+  $("btn-anchor").addEventListener("click", () => {
+    anchorSeed();
+    rebuildCymModes();
+  });
+
+  $("btn-audio").addEventListener("click", startAudio);
+  $("btn-panic").addEventListener("click", panic);
+  $("btn-sentinel").addEventListener("click", () => setSentinelActive(!S.sentinel.active));
+
+  $("master-vol").addEventListener("input", () => {
+    const v = Number($("master-vol").value);
+    $("vol-read").textContent = String(v);
+    if (master) master.gain.value = v / 100 * 0.6;
+  });
+  $("master-vol").addEventListener("change", persist);
+
+  for (const id of ["s-n","s-k","s-perturb","s-spread"]) {
+    $(id).addEventListener("input", onSliderInput);
+    $(id).addEventListener("change", () => { rebuildCymModes(); persist(); });
+  }
+
+  for (const tab of document.querySelectorAll(".vtab")) {
+    tab.addEventListener("click", () => { setView(tab.getAttribute("data-view")); persist(); });
+  }
+  $("sigil-chip").addEventListener("click", () => { setView("sigil"); persist(); });
+
+  $("btn-export").addEventListener("click", exportState);
+  $("btn-import").addEventListener("click", () => {
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = "application/json,.json";
+    inp.addEventListener("change", () => {
+      if (inp.files && inp.files[0]) importState(inp.files[0]);
+    });
+    inp.click();
+  });
+  $("btn-snap").addEventListener("click", takeSnapshot);
+  $("btn-snap-clear").addEventListener("click", () => {
+    S.snapshots = []; renderSnapshots();
+  });
+  $("btn-trace-clear").addEventListener("click", () => {
+    S.trace = []; renderTrace();
+  });
+  $("opt-include-chart").addEventListener("change", () => {
+    if (codex.classList.contains("show") && codexAnchor &&
+        codexAnchor.getAttribute("data-info") === "redaction") {
+      openCodex("redaction", codexAnchor);
+    }
+  });
+
+  // ------------------------------------------------------- keyboard
+  const VIEW_KEYS = { "1":"field", "2":"lattice", "3":"cymatic",
+                      "4":"spectrum", "5":"sigil" };
+  document.addEventListener("keydown", (ev) => {
+    const tag = (ev.target && ev.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || ev.metaKey || ev.ctrlKey) return;
+    if (VIEW_KEYS[ev.key]) { setView(VIEW_KEYS[ev.key]); persist(); return; }
+    const k = ev.key.toLowerCase();
+    if (k === " " || ev.code === "Space") { ev.preventDefault(); startAudio(); return; }
+    if (k === "s") { setSentinelActive(!S.sentinel.active); return; }
+    if (k === "a") { anchorSeed(); rebuildCymModes(); return; }
+    if (k === "escape") { panic(); return; }
+  });
+
+  /* ==================================================================
+     INIT
+     ================================================================== */
+  restore();
+  syncSentinelUI();
+  setView(S.view);
+  renderChain();
+  renderBedrockTable();
+  renderGhostTable();
+  renderTrace();
+  renderSnapshots();
+  drawSigilChip();
+  $("vol-read").textContent = $("master-vol").value;
+  $("t-defect").textContent = NS.sturmianDefect(NS.substitutionWord(200)).toFixed(4);
+
+  // Startup self-check against the reference vector shared with Python.
+  try {
+    const check = NS.seedToHex(NS.deriveNatalSeed(NS.TEST_CHART, NS.TEST_INTENTION));
+    if (check === "86813727ef5b4048") {
+      $("bdg-net").textContent = "offline · parity ok";
+      $("bdg-net").className = "badge on";
+    } else {
+      $("bdg-net").textContent = "parity divergence";
+      $("bdg-net").className = "badge";
+      $("bdg-net").style.borderColor = "var(--bad)";
+      $("bdg-net").style.color = "var(--bad)";
+    }
+  } catch (err) {
+    $("bdg-net").textContent = "self-check failed";
+  }
+
+  resizeStage();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
